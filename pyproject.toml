@@ -1,0 +1,19 @@
+[project]
+name = "football-comps"
+version = "0.1.0"
+description = "Find statistically similar football players and project career trajectories as probability ranges."
+requires-python = ">=3.10"
+dependencies = [
+    "requests>=2.31",
+    "pandas>=2.0",
+    "rapidfuzz>=3.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[tool.setuptools.packages.find]
+include = ["data_pipeline*", "features*", "ml*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
