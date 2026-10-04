@@ -18,3 +18,11 @@ data/*.log
 data/*.txt
 backend/db.sqlite3
 backend/staticfiles/
+
+# private planning notes (not for the public repo)
+football-project-brief.md
+
+# project-local tools (portable Node for the frontend)
+.tools/
+frontend/node_modules/
+frontend/dist/

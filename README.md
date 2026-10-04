@@ -1,20 +1,44 @@
 # Football player comps & trajectory projection
 
-Finds statistically similar football players (controlling for age, league quality and position) and projects likely career trajectories as **probability ranges** based on what comparable historical players became. Portfolio project; see `football-project-brief.md` for full scope.
+A scouting-analytics tool built on free data: it finds statistically similar football players (controlling for age, league quality and position), forecasts where a player's level is heading as a **fan chart with an uncertainty band**, flags players priced below what they produce, and profiles a team's style to show where it is weak.
+> Status: pipeline, features, models, backtests, Django API and React app are built and tested (153 Python + 30 frontend tests, CI on both). **Not deployed yet**; run it locally with `.\start.cmd` (see below).
 
-> Status: **Phase 1 in progress** — data pipeline & entity resolution.
+## What this project is really about
+
+Three problems that decide whether a tool like this can be trusted, and how each was handled:
+
+1. **Linking players across sources with no shared id.** Understat, FBref and Transfermarkt spell names differently and only Transfermarkt has birth dates. A two-pass resolver (fuzzy name, then a club map *learned* from the first pass) links 97.6 to 100% of minutes in every league-season, one-to-one, and the two independent links agree on minutes for 99.95% of player-seasons. See *Entity resolution*.
+2. **Comparing leagues without assuming a ranking.** The league-strength factor is estimated from 903 players who changed league, with bootstrap intervals, and the antisymmetry of the shifts is checked. See *League-strength adjustment*.
+3. **Reporting what does not work.** The first design (statistical twins predict careers) **lost to a "same level, same age" baseline** in a leakage-controlled rolling-origin backtest. The headline model is now a regularised learned model that wins with intervals excluding zero, the comps are shown as evidence, and a leaky result (a +15.6 R-squared signal in signings) was caught and corrected to about +3. See *Trajectory forecast and backtest* and *Beyond the comps*.
+
+| Result | Number |
+|---|---|
+| Entity resolution, share of minutes linked | 97.6 to 100% per league-season |
+| Similarity engine vs chance (hit@10) | 0.39 vs 0.03 |
+| Comps vs "same level" baseline (Brier, lower is better) | 0.598 vs 0.582 (comps lose) |
+| Learned tier model vs baseline (holdout Brier) | 0.516 vs 0.589 |
+| Fan chart vs shrinkage baseline (pinball, 1 to 3 seasons ahead) | 3.94 / 4.20 / 4.42 vs 4.16 / 4.49 / 4.57 |
+| Most vs least underpriced decile, value change after correcting for leavers | +19% (1 season), +33% (2 seasons) |
+| Do signings explain team style change? | about +3 R-squared points, not a recruitment guarantee |
 
 ## Layout
 
 | Path | Purpose |
 |---|---|
-| `data_pipeline/` | scraping/ingestion, caching, entity resolution (framework-agnostic) |
-| `features/` | percentile ranks, league adjustment (planned) |
-| `ml/` | similarity engine, trajectory model, backtest (planned) |
-| `backend/` | Django + DRF (planned) |
-| `frontend/` | React + TypeScript (planned) |
+| `data_pipeline/` | cached, rate-limited ingestion (Understat, Transfermarkt, FBref, StatsBomb) and entity resolution; framework-agnostic |
+| `features/` | age, per-90 rates, league-strength adjustment, percentiles, team-style profiles; framework-agnostic |
+| `ml/` | similarity engine, gap analysis, outcome definitions, learned forecasts, backtests, aging curves, value lens, outlook fan chart, recruitment shortlist; framework-agnostic |
+| `backend/` | Django 5 + DRF read-only API, admin over the pipeline DB, management-command wrappers, API tests |
+| `frontend/` | React 19 + TypeScript single-page app (Vite, TanStack Query, Recharts) |
+| `tests/` | 94 tests for the pipeline, features and models |
+| `docs/` | backtest outputs, figures, screenshots, the OpenAPI schema |
+| `start.cmd`, `start.ps1` | one-command local launcher (Windows) |
 
 ## Quick start
+
+To just see the app (Windows, after the data and caches exist): `.\start.cmd`. It opens http://127.0.0.1:5173. See *Frontend* for the options.
+
+To build everything from scratch:
 
 ```bash
 pip install -e ".[dev]"
@@ -290,9 +314,47 @@ Design points worth knowing:
 - **Configuration is environment variables:** `DJANGO_SECRET_KEY`, `DJANGO_DEBUG`, `DJANGO_ALLOWED_HOSTS`, `CORS_ALLOWED_ORIGINS` (the React app's origin; the default is the Vite dev server), `FOOTBALL_DB`, `FORECAST_CACHE`, `FORECAST_BOOTSTRAPS`, `PRELOAD_MODELS`, `API_THROTTLE_ANON` (default 120/min). The API is GET-only, JSON-only and rate limited; the secret key is mandatory outside debug mode.
 - **Tests (59 in `backend/tests`)** run the real `ml/` and `features/` code on a small synthetic football world, not mocks: endpoint shapes and error paths, outcomes withheld until a comp's window has finished, budget and age filters on shortlists, OpenAPI coverage, CORS, read-only methods, cache building and invalidation, and every command wrapper.
 
+## Frontend (React + TypeScript)
+
+`frontend/` is a Vite single-page app (React 19, React Router, TanStack Query, Recharts) that talks to the API above. It is a separate deployable: in development Vite proxies `/api` to Django; in production it calls `VITE_API_URL`, and that origin must be listed in the backend's `CORS_ALLOWED_ORIGINS`.
+
+![Player page](docs/screenshot_player.png)
+
+**Fastest way to try it (Windows):** `.\start.cmd` in the project folder checks the prerequisites, starts the API and the web app in two windows, waits until both answer, and opens http://127.0.0.1:5173. `.\start.cmd -Stop` stops them; `-BuildCache` rebuilds the model cache after you rebuild the data; `-NoBrowser` skips the browser. Or by hand:
+
+```bash
+cd frontend                    # needs Node 20.19 or newer
+npm ci
+npm run dev                    # http://localhost:5173 (start the Django API on :8000 first)
+npm test                       # 30 Vitest tests
+npm run build                  # type-check, then production build to dist/
+npm run gen:api                # regenerate src/api/schema.d.ts from docs/openapi.yaml
+```
+
+| Page | What it shows |
+|---|---|
+| `/` | search with autocomplete, what the app does, a link to what failed |
+| `/players/:id` | profile, **outlook fan chart**, outcome probabilities with ranges, the comparable players and what they became, strengths and gaps against them, price versus output, season table; season picker |
+| `/teams?team=&season=` | the ten tactical dimensions against the league, gaps in red, and a filterable shortlist (gap, max age, budget) |
+| `/insights` | aging curves by position, league-strength table |
+| `/method` | every claim that was tested, with the verdict ("held up" or "did not hold") |
+
+![Team page](docs/screenshot_team.png)
+
+Design decisions worth knowing:
+- **Types come from the API contract.** `src/api/schema.d.ts` is generated from the committed OpenAPI file, so a backend change that breaks the UI fails the type-check instead of failing in a browser. TypeScript is pinned to 5.9 because `openapi-typescript` needs the JavaScript compiler API that TypeScript 7 no longer ships.
+- **The UI repeats the backtest's honesty.** The headline probability is the learned model; the comps are shown as evidence with an orange tick marking what they alone would say; noisy team dimensions are labelled noisy and the shortlist defaults to the weakest *reliable* gap; capped values say they are capped; "no outlook" explains why (defender, or too few minutes) instead of showing an empty chart.
+- **Every chart has a text equivalent** (an `aria-label` summary and a data table), diverging charts carry a legend so colour is never the only cue, and the search box is a keyboard-operable ARIA combobox.
+- **Theme tokens match the Python figures** (the same validated palette), with light, dark and follow-the-OS modes.
+- **Errors carry the server's own message** ("No player with id 99.") and network failures say the backend is not reachable. Client errors are not retried; server errors are, twice.
+- **Route-level code splitting.** The landing page is 86 KB gzipped; the 100 KB of chart code loads only when a chart page opens.
+- **Tests (30)** cover the formatters, URL building and error parsing, the fan-chart data shaping, the autocomplete's debounce and keyboard behaviour, and whole pages rendered against a mocked API: profile, forecast evidence, a defender with no outlook, a 404, a malformed id, the season parameter, and the team shortlist defaults. One of them caught a real bug (the page requested `/players/NaN/` for a malformed id).
+
 ## Known gaps
 
 - StatsBomb is not yet linked to Transfermarkt (it has no club-season squad table to block on).
-- The React frontend and deployment are not built yet.
-- Per-player value history covers about 2,150 players (the most-played first, plus every leaver in the extreme value-lens deciles); the rest of the ~9,400 are not fetched.
+- **Deployment is not done.** The plan is the Django API on Render or Railway (with `PRELOAD_MODELS=1` and a prebuilt `forecaster.pkl`, or a build step) and the frontend on Vercel (`VITE_API_URL`, with that origin in `CORS_ALLOWED_ORIGINS`). There is no live demo link yet.
+- Per-player value history covers about 5,500 of the ~9,400 players (most-played first; the fetch is resumable). The value-lens results above were computed on the smaller set available at the time, plus every leaver in the extreme deciles.
+- The Egyptian-league case study and the Hamza Abdelkarim test (an 18-year-old Egyptian striker who came through Al Ahly's academy and now plays for Barcelona's reserve side) are not done: they need lower-league and non-European data that the free sources here do not provide.
+- Pathway features from transfer history (origin club tier, reserve versus first-team football) are not in the similarity engine yet.
 - A few players are missing from Transfermarkt squad pages (e.g. short loans); they stay unlinked rather than guessed.

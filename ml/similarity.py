@@ -1,6 +1,6 @@
 """Similarity engine: find the player-seasons most like a target, fairly.
 
-"Fairly" means the comparison is controlled for what the brief calls out:
+"Fairly" means the comparison is controlled for what matters in football:
   * position   hard filter on position group
   * age        hard window (default +-1.5 years) plus a soft age term
   * league     stats are league-adjusted (features.league_strength), and the league's
