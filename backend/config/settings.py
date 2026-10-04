@@ -126,6 +126,9 @@ SPECTACULAR_SETTINGS = {
 CORS_ALLOWED_ORIGINS = env_list("CORS_ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173")
 CORS_ALLOW_METHODS = ["GET", "HEAD", "OPTIONS"]
 
+# Ages with fewer observations than this are not shown on the aging curves (the estimate is too noisy to report)
+AGING_MIN_OBS = int(os.environ.get("AGING_MIN_OBS", "30"))
+
 # ---------------------------------------------------------------- forecasting service
 # Bootstrap fits behind the forecast ranges (model uncertainty); the pickle is built by
 # `manage.py build_forecast_cache` and reused until the pipeline database changes.

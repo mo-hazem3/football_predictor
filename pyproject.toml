@@ -15,10 +15,15 @@ dependencies = [
 [project.optional-dependencies]
 fbref = ["soccerdata>=1.8"]
 viz = ["matplotlib>=3.8", "adjustText>=1.1"]
-dev = ["pytest>=8.0", "matplotlib>=3.8", "adjustText>=1.1"]
+backend = ["django>=5.2,<6", "djangorestframework>=3.15", "drf-spectacular>=0.27", "django-cors-headers>=4.3"]
+dev = ["pytest>=8.0", "pytest-django>=4.8", "matplotlib>=3.8", "adjustText>=1.1",
+       "django>=5.2,<6", "djangorestframework>=3.15", "drf-spectacular>=0.27", "django-cors-headers>=4.3"]
 
 [tool.setuptools.packages.find]
 include = ["data_pipeline*", "features*", "ml*"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests", "backend/tests"]
+pythonpath = [".", "backend"]
+DJANGO_SETTINGS_MODULE = "config.settings_test"
+filterwarnings = ["ignore::DeprecationWarning:rest_framework.*"]

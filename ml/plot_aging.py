@@ -43,9 +43,11 @@ def main(argv=None) -> int:
         ax.axhline(1.0, color=AXIS, lw=1, ls=":", zorder=1)
         ax.fill_between(c.age, np.exp(c.lo), np.exp(c.hi), color=BLUE, alpha=0.16, lw=0, zorder=2)
         ax.plot(c.age, c.multiple_of_25, color=BLUE, lw=2, zorder=3)
-        lo, hi = aging.plateau(c, min_obs=MIN_OBS)
-        ax.annotate(f"within 3% of the top: ages {lo}-{hi}" if hi > lo else f"top at age {lo}", (0.03, 0.04), xycoords="axes fraction",
-                    fontsize=8, color=INK2, ha="left")
+        plat = aging.plateau(c, min_obs=MIN_OBS)
+        if plat:
+            lo, hi = plat
+            ax.annotate(f"within 3% of the top: ages {lo}-{hi}" if hi > lo else f"top at age {lo}", (0.03, 0.04), xycoords="axes fraction",
+                        fontsize=8, color=INK2, ha="left")
         ax.set_title(TITLES[g], loc="left", fontsize=10.5, color=INK, pad=8)
         ax.set_xlabel("Age", fontsize=8.5, color=INK2)
         ax.set_facecolor(SURFACE)

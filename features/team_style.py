@@ -42,6 +42,8 @@ LABELS = {
     "deep_allowed": "Territory conceded near goal", "pressing": "Pressing intensity",
 }
 SET_PIECES = ["FromCorner", "SetPiece", "DirectFreekick"]
+# season-to-season persistence of a team's value is low (r ~ 0.3-0.4), so a gap there may be partly noise
+NOISY_DIMENSIONS = {"transition_xg", "set_piece_xg"}
 
 
 def _style_pivot(style: pd.DataFrame) -> pd.DataFrame:

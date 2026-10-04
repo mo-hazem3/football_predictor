@@ -18,8 +18,7 @@ from ml.learned import add_trend
 from ml.outcomes import add_composite, build_outcomes, value_series
 from ml.value_lens import build_panel, crossfit_residual
 
-# style dimensions whose season-to-season persistence is low (r ~ 0.3-0.4): a gap there may be partly noise
-NOISY = {"transition_xg", "set_piece_xg"}
+NOISY = ts.NOISY_DIMENSIONS
 
 
 def price_vs_output(out: pd.DataFrame, season: int) -> pd.Series:

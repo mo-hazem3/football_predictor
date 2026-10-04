@@ -34,6 +34,8 @@ python -m ml.project "Lamine Yamal" --season 2024                       # foreca
 python -m ml.backtest --out docs/backtest_h3.txt --calibration-out docs/elite_calibration.json   # rolling-origin backtest (~6 min)
 python -m data_pipeline.ingest_understat_teams                          # team style data (~20 min, cached)
 python -m ml.plot_aging                                                 # aging curves figure
+python -m ml.evaluate_outlook --out docs/outlook_backtest.txt           # fan-chart backtest (~5 min)
+python -m ml.plot_outlook                                               # fan-chart figure
 python -m ml.evaluate_value_lens --horizon 1                            # value-vs-performance backtest
 python -m ml.team_report "Burnley" --season 2023                       # team style, gaps, candidate shortlists
 pytest
@@ -183,9 +185,36 @@ Failure cases, not hidden:
 - **Definitions matter:** "elite" is a stats composite at a fixed cut (top decile); "out" mixes injury, retirement and moving to a league outside the data; market value is only observed while on a top-5 squad; forecasts are capped at the highest value in the data (EUR 200m) because too few players sit near the top for the model to learn a ceiling. The 80% value interval covers 79% overall.
 - **Scope:** top-5 leagues only, a 3-season horizon, attacking composites for outfield players. Lower-league and non-European origins (the Hamza Abdelkarim case) need other data.
 
-## Beyond the comps: aging, value and team needs
+## Beyond the comps: outlook, aging, value and team needs
 
-The backtest above showed that "find the statistical twins" adds little for predicting a career. These three pieces are what the data supports instead. Each was tested out of sample or against a baseline, and the negative results are kept.
+The backtest above showed that "find the statistical twins" adds little for predicting a career. These four pieces are what the data supports instead. Each was tested out of sample or against a baseline, and the negative results are kept.
+
+### Player outlook: a fan chart (`ml/outlook.py`, `ml/evaluate_outlook.py`)
+
+Where will a player's level be in one, two and three seasons? Level is the position-specific composite percentile (0 to 100, forwards, wingers and midfielders), and the answer is a 10/50/90% band, not a line:
+
+![Fan charts for four players](docs/outlook_fan_charts.png)
+
+The band is **conditional on the player still getting 900+ minutes in the five leagues** (otherwise there is no level to measure), so a second model gives the probability that he does; the charts print it (Yamal 97% three seasons out, De Bruyne at 35 only 12%). Three forecasters were compared in a rolling-origin backtest (origins 2018 to 2022, features rebuilt as of each origin, 7,250 forecasts for 1,273 players, scored against what happened):
+- **persistence**: the player stays where he is, with the empirical spread of what actually happened,
+- **shrinkage**: regression toward the position mean, fitted per position and horizon (the winner of the aging test),
+- **quantile GB**: gradient-boosted 10/50/90% regressors on current level, last season's change, age, minutes, league strength and jump, market value, position.
+
+| Mean pinball loss (lower is better), all ages | h=1 | h=2 | h=3 |
+|---|---|---|---|
+| persistence | 4.39 | 4.82 | 4.95 |
+| shrinkage | 4.16 | 4.49 | 4.57 |
+| **quantile GB** | **3.94** | **4.20** | **4.42** |
+| GB minus shrinkage (95% interval) | -0.22 [-0.28, -0.15] | -0.28 [-0.37, -0.21] | -0.15 [-0.27, -0.05] |
+| 10-90% band coverage (target 80%), GB | 0.78 | 0.78 | 0.78 |
+
+The learned quantile model beats both baselines at every horizon with intervals that exclude zero, but the gain over plain shrinkage is modest (about 3 to 6% of the loss). Median error is 12.8, 13.6 and 14.3 percentile points at one, two and three seasons, against 14.0, 15.4 and 15.8 for persistence. It helps most for young players (24-and-under: -0.27, -0.42, -0.27 against shrinkage, and its band is better calibrated, 0.77 to 0.80 versus 0.74 to 0.76 for shrinkage) and for players of 30 and over at one and two seasons; for ages 24 to 29 at three seasons it is not distinguishable from shrinkage (-0.08 [-0.19, +0.04]).
+
+Where it falls short, kept in:
+- **Bands are slightly too narrow**: 78% coverage for a nominal 80%, and 76 to 78% for players of 30 and over.
+- **Survival is a little optimistic**: the predicted chance of still being a top-5 regular was 69%, 59% and 51% at one, two and three seasons against 66%, 55% and 46% realised (still clearly better than the base rate: Brier 0.183, 0.204 and 0.199 against 0.224, 0.248 and 0.249).
+- **The level is a stats composite at the top end of a bounded scale**, so elite players' bands are clipped at 100 and say little beyond "stays elite".
+- **Defenders and goalkeepers are not covered** (no composite), and a player whose latest season had under 900 minutes (injury) gets an outlook from his last qualifying season, with a note saying so.
 
 ### Aging curves (`ml/aging.py`)
 
@@ -225,8 +254,45 @@ What it does and does not say. This is about **Transfermarkt's value estimate** 
 
 **Recruitment shortlist (`python -m ml.team_report "Burnley" --season 2023`).** Given that evidence, the shortlist is deliberately a labelled heuristic: for each gap it ranks candidates (suitable positions, age at most 29) by their percentile on the metrics that plausibly drive the gap, capped at the market value of the club's most valuable player so that it recommends players the club could plausibly buy, and shows price versus output and where the age sits on the position's plateau. It does **not** claim a signing closes the gap, and set-piece defending is reported as unmappable (the free data has no aerial duels or marking). For Burnley 2023/24 (gaps in chance creation, penetration, shot quality and defending) it surfaces players such as Aleksey Miranchuk, Angel Correa, Jacob Murphy and, for the back line, Mallorca's Copete at EUR 2.8m.
 
+## Backend API (Django REST Framework)
+
+`backend/` is a Django project that serves everything above over a read-only JSON API. The modelling code stays framework-agnostic (`data_pipeline/`, `features/`, `ml/` import nothing from Django); the backend imports it and holds the fitted models.
+
+```bash
+pip install -e ".[dev]"                          # includes Django, DRF, drf-spectacular, pytest-django
+cd backend
+export DJANGO_DEBUG=1                            # or set DJANGO_SECRET_KEY (required when DEBUG is off)
+python manage.py migrate                         # Django's own tables (admin login) only; the pipeline DB is never migrated
+python manage.py build_forecast_cache            # fit once (~95 s), pickle to data/cache/forecaster.pkl (46 MB)
+python manage.py runserver                       # http://127.0.0.1:8000/api/docs/  (Swagger UI),  /admin/
+```
+
+| Endpoint | What it returns |
+|---|---|
+| `GET /api/v1/players/search/?q=` | accent-insensitive autocomplete, ranked by match then career minutes |
+| `GET /api/v1/players/{id}/` | bio (Transfermarkt), every season with per-90 rates and percentiles |
+| `GET /api/v1/players/{id}/comps/?season=&k=` | comparable players with what each became, plus gap analysis |
+| `GET /api/v1/players/{id}/forecast/` | outcome probabilities with a range, value range, comps as evidence, caveats |
+| `GET /api/v1/players/{id}/outlook/` | fan chart: 10/50/90% level for the next 3 seasons and P(still a regular) |
+| `GET /api/v1/players/{id}/value/` | price versus output by season (forwards, wingers, midfielders) |
+| `GET /api/v1/aging/` | aging curves and plateaus by position |
+| `GET /api/v1/teams/search/?q=`, `/teams/profile/?team=&season=` | team style profile with gap flags |
+| `GET /api/v1/teams/shortlist/?team=&season=&gap=&max_value_m=` | candidate players for a gap (labelled heuristic) |
+| `GET /api/v1/leagues/`, `/meta/`, `/health/` | league-strength factors, coverage and model info, liveness |
+
+The OpenAPI schema (`/api/schema/`, committed as `docs/openapi.yaml`) is generated by drf-spectacular and validated in CI.
+
+Design points worth knowing:
+- **Two databases.** `default` holds Django's tables; `pipeline` is the pipeline's SQLite file, read through *unmanaged* models (SQLite `rowid` as primary key, a database router that forbids migrations there). Django's admin therefore browses pipeline output (players, entity-resolution links by stage, league factors, squads, transfers) read-only, with no add/change/delete.
+- **Models are fitted once and shared.** The forecaster, value table, aging curves and team profiles are built by `build_forecast_cache` and pickled. The server loads the pickle in about 2.5 s (versus 95 s to refit) and falls back to building on first use if it is missing. With `PRELOAD_MODELS=1` it loads at start-up in a background thread, so `/health/` answers meanwhile. A request takes 0 to 70 ms once loaded.
+- **The cache is keyed on the data it is built from, not the database file.** A fingerprint of the four tables the service reads (row counts and column sums) decides validity. The first version compared the file's modification time and was invalidated constantly by a Transfermarkt scrape appending value history to the same file; `test_cache_survives_writes_to_tables_the_service_does_not_read` pins that down.
+- **Pipeline commands are `manage.py` commands too.** `ingest_understat`, `ingest_understat_teams`, `ingest_transfermarkt`, `ingest_fbref`, `ingest_statsbomb`, `link_understat_tm`, `link_fbref_tm`, `build_features`, `run_backtest` and `evaluate_value_lens` hand their raw command line to the framework-agnostic CLI (`python manage.py ingest_understat --leagues EPL --seasons 2020 2025`), so there is one implementation, not two.
+- **Configuration is environment variables:** `DJANGO_SECRET_KEY`, `DJANGO_DEBUG`, `DJANGO_ALLOWED_HOSTS`, `CORS_ALLOWED_ORIGINS` (the React app's origin; the default is the Vite dev server), `FOOTBALL_DB`, `FORECAST_CACHE`, `FORECAST_BOOTSTRAPS`, `PRELOAD_MODELS`, `API_THROTTLE_ANON` (default 120/min). The API is GET-only, JSON-only and rate limited; the secret key is mandatory outside debug mode.
+- **Tests (59 in `backend/tests`)** run the real `ml/` and `features/` code on a small synthetic football world, not mocks: endpoint shapes and error paths, outcomes withheld until a comp's window has finished, budget and age filters on shortlists, OpenAPI coverage, CORS, read-only methods, cache building and invalidation, and every command wrapper.
+
 ## Known gaps
 
 - StatsBomb is not yet linked to Transfermarkt (it has no club-season squad table to block on).
+- The React frontend and deployment are not built yet.
 - Per-player value history covers about 2,150 players (the most-played first, plus every leaver in the extreme value-lens deciles); the rest of the ~9,400 are not fetched.
 - A few players are missing from Transfermarkt squad pages (e.g. short loans); they stay unlinked rather than guessed.

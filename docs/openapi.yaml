@@ -1,0 +1,1210 @@
+openapi: 3.0.3
+info:
+  title: Football player comps and trajectory API
+  version: 1.0.0
+  description: Find statistically similar football players (controlled for position,
+    age and league quality) and project what comparable players went on to become,
+    as probabilities with ranges. Read-only. See the repository README for how the
+    numbers are produced and how well they validate.
+paths:
+  /api/v1/aging/:
+    get:
+      operationId: v1_aging_retrieve
+      description: 'A player''s attacking output at each age as a multiple of his
+        own output at 25 (within-player estimate, league-adjusted, 95% bootstrap band).
+        Descriptive: the backtest found the curves add no forecasting value beyond
+        regression to the mean.'
+      summary: Aging curves by position
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgingResponse'
+          description: ''
+  /api/v1/health/:
+    get:
+      operationId: v1_health_retrieve
+      summary: Liveness (does not load the models)
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+          description: ''
+  /api/v1/leagues/:
+    get:
+      operationId: v1_leagues_list
+      description: 'Estimated from players who changed league: a factor of 0.85 means
+        the same player typically produces ~15% less attacking output per 90 there
+        than the five-league average (difficulty mixed with playing style).'
+      summary: League-strength factors
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LeagueStrength'
+          description: ''
+  /api/v1/meta/:
+    get:
+      operationId: v1_meta_retrieve
+      summary: Data and model coverage
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Meta'
+          description: ''
+  /api/v1/players/{player_id}/:
+    get:
+      operationId: v1_players_retrieve
+      description: Bio from Transfermarkt (when linked) and every season with per-90
+        rates and percentiles.
+      summary: Player profile
+      parameters:
+      - in: path
+        name: player_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlayerProfile'
+          description: ''
+  /api/v1/players/{player_id}/comps/:
+    get:
+      operationId: v1_players_comps_retrieve
+      description: The player-seasons most similar to this one, controlled for position,
+        age (+-1.5 years) and league quality, one row per distinct player, with what
+        each went on to become and a gap analysis against the comp set. Similarity
+        is by statistical profile; the backtest found it adds no predictive power
+        beyond current level, so use it as evidence, not as the probability.
+      summary: Comparable players
+      parameters:
+      - in: query
+        name: k
+        schema:
+          type: integer
+        description: Number of comps, 1-50, default 10
+      - in: path
+        name: player_id
+        schema:
+          type: integer
+        required: true
+      - in: query
+        name: season
+        schema:
+          type: integer
+        description: 'Start year; default: the player''s latest ranked season'
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompsResponse'
+          description: ''
+  /api/v1/players/{player_id}/forecast/:
+    get:
+      operationId: v1_players_forecast_retrieve
+      description: Probabilities for what the player becomes over the next `horizon`
+        seasons, with a model-uncertainty range, a market-value range, and the comps
+        as evidence. The headline comes from a learned model (validated in a rolling-origin
+        backtest); `comps_alone` shows the weaker comps-only estimate.
+      summary: Trajectory forecast
+      parameters:
+      - in: query
+        name: horizon
+        schema:
+          type: integer
+        description: Seasons ahead; only the fitted horizon (3) is available
+      - in: path
+        name: player_id
+        schema:
+          type: integer
+        required: true
+      - in: query
+        name: season
+        schema:
+          type: integer
+        description: 'Start year; default: the player''s latest ranked season'
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ForecastResponse'
+          description: ''
+  /api/v1/players/{player_id}/outlook/:
+    get:
+      operationId: v1_players_outlook_retrieve
+      description: Where the player's level (composite percentile, 0-100) is likely
+        to be 1, 2 and 3 seasons from the chosen season, as a 10/50/90% band, plus
+        the probability he is still a regular top-5-league player at each point. Forwards,
+        wingers and midfielders with 900+ minutes in the season.
+      summary: Fan-chart outlook
+      parameters:
+      - in: path
+        name: player_id
+        schema:
+          type: integer
+        required: true
+      - in: query
+        name: season
+        schema:
+          type: integer
+        description: 'Start year; default: the player''s latest season with 900+ minutes'
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OutlookResponse'
+          description: ''
+  /api/v1/players/{player_id}/value/:
+    get:
+      operationId: v1_players_value_retrieve
+      description: 'For forwards, wingers and midfielders: how far each season''s
+        market value sat below or above what peers with the same output and age are
+        valued at. Backtested: players priced lowest for their output gained roughly
+        19% more value over the next season than the highest-priced (33% over two),
+        counting players who left the five leagues. It is about Transfermarkt''s value
+        estimate, not transfer fees.'
+      summary: Price versus output
+      parameters:
+      - in: path
+        name: player_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlayerValue'
+          description: ''
+  /api/v1/players/search/:
+    get:
+      operationId: v1_players_search_list
+      description: Accent-insensitive; every query word must appear in the name. Exact
+        and prefix matches rank first, then by career minutes. Intended for autocomplete.
+      summary: Search players by name
+      parameters:
+      - in: query
+        name: limit
+        schema:
+          type: integer
+        description: 1-25, default 10
+      - in: query
+        name: q
+        schema:
+          type: string
+        description: At least 2 characters
+        required: true
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PlayerSearchResult'
+          description: ''
+  /api/v1/teams/profile/:
+    get:
+      operationId: v1_teams_profile_retrieve
+      description: Ten tactical-style dimensions ranked against the league that season
+        (higher = better), from Understat team data. A gap is a dimension in the bottom
+        quartile (threshold adjustable). Pressing and penetration are stable year
+        to year; transition and set-piece threat are noisy and flagged as such.
+      summary: Team style profile and gaps
+      parameters:
+      - in: query
+        name: season
+        schema:
+          type: integer
+        description: 'Start year; default: latest'
+      - in: query
+        name: team
+        schema:
+          type: string
+        description: Exact team name (see /teams/search/)
+        required: true
+      - in: query
+        name: threshold
+        schema:
+          type: integer
+        description: Percentile at or below which a dimension is a gap, default 25
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeamProfile'
+          description: ''
+  /api/v1/teams/search/:
+    get:
+      operationId: v1_teams_search_list
+      summary: Search teams by name
+      parameters:
+      - in: query
+        name: limit
+        schema:
+          type: integer
+      - in: query
+        name: q
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TeamSearchResult'
+          description: ''
+  /api/v1/teams/shortlist/:
+    get:
+      operationId: v1_teams_shortlist_retrieve
+      description: 'Ranks players in suitable positions by their percentile on the
+        metrics that plausibly bear on the gap, capped by default at the market value
+        of the club''s most valuable player, with price-versus-output and where the
+        age sits on the position''s output plateau. A labelled heuristic: an observational
+        test found that signings explain only a few points of R-squared of next season''s
+        style change, so it does not predict that a signing closes the gap. Set-piece
+        defending has no mapping.'
+      summary: Candidate players for a team gap (heuristic)
+      parameters:
+      - in: query
+        name: gap
+        schema:
+          type: string
+        description: 'A style dimension; default: the team''s weakest'
+      - in: query
+        name: max_age
+        schema:
+          type: integer
+        description: Default 29
+      - in: query
+        name: max_value_m
+        schema:
+          type: number
+          format: double
+        description: Budget ceiling in EUR millions
+      - in: query
+        name: n
+        schema:
+          type: integer
+        description: 1-25, default 8
+      - in: query
+        name: season
+        schema:
+          type: integer
+      - in: query
+        name: team
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShortlistResponse'
+          description: ''
+components:
+  schemas:
+    AgingGroup:
+      type: object
+      properties:
+        position_group:
+          type: string
+        label:
+          type: string
+        plateau_from:
+          type: integer
+          description: Ages within 3% of the estimated maximum (smoothed)
+        plateau_to:
+          type: integer
+        points:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgingPoint'
+      required:
+      - label
+      - plateau_from
+      - plateau_to
+      - points
+      - position_group
+    AgingPoint:
+      type: object
+      properties:
+        age:
+          type: integer
+        multiple_of_25:
+          type: number
+          format: double
+        lo:
+          type: number
+          format: double
+          nullable: true
+        hi:
+          type: number
+          format: double
+          nullable: true
+        n_obs:
+          type: integer
+      required:
+      - age
+      - hi
+      - lo
+      - multiple_of_25
+      - n_obs
+    AgingResponse:
+      type: object
+      properties:
+        groups:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgingGroup'
+        notes:
+          type: array
+          items:
+            type: string
+      required:
+      - groups
+      - notes
+    Candidate:
+      type: object
+      properties:
+        player_id:
+          type: integer
+        name:
+          type: string
+        team:
+          type: string
+          nullable: true
+        league:
+          type: string
+        position_group:
+          type: string
+        age:
+          type: number
+          format: double
+        age_note:
+          type: string
+        minutes:
+          type: number
+          format: double
+        fit:
+          type: number
+          format: double
+          description: Mean percentile within position on the metrics that bear on
+            the gap
+        market_value_eur:
+          type: number
+          format: double
+          nullable: true
+        price_vs_output_pct:
+          type: number
+          format: double
+          nullable: true
+      required:
+      - age
+      - age_note
+      - fit
+      - league
+      - market_value_eur
+      - minutes
+      - name
+      - player_id
+      - position_group
+      - price_vs_output_pct
+      - team
+    Comp:
+      type: object
+      properties:
+        player_id:
+          type: integer
+        name:
+          type: string
+        season:
+          type: integer
+        league:
+          type: string
+        team:
+          type: string
+          nullable: true
+        age:
+          type: number
+          format: double
+        minutes:
+          type: number
+          format: double
+        distance:
+          type: number
+          format: double
+          description: Smaller = more similar (not comparable across different targets)
+        outcome:
+          type: string
+          nullable: true
+          description: 'What this comp became over the next horizon seasons: elite,
+            good, regular, out (or retained/out for defenders and goalkeepers). Null
+            when that window is not finished yet.'
+        value_ratio:
+          type: number
+          format: double
+          nullable: true
+          description: Peak market value over the horizon / value at the time
+        per90:
+          type: object
+          additionalProperties:
+            type: number
+            format: double
+            nullable: true
+      required:
+      - age
+      - distance
+      - league
+      - minutes
+      - name
+      - outcome
+      - per90
+      - player_id
+      - season
+      - team
+      - value_ratio
+    CompsResponse:
+      type: object
+      properties:
+        target:
+          $ref: '#/components/schemas/Target'
+        features_used:
+          type: array
+          items:
+            type: string
+          description: Stats the comparison used; seasons before 2016 lack FBref defensive
+            stats
+        horizon:
+          type: integer
+        comps:
+          type: array
+          items:
+            $ref: '#/components/schemas/Comp'
+        gap_analysis:
+          type: array
+          items:
+            $ref: '#/components/schemas/Gap'
+      required:
+      - comps
+      - features_used
+      - gap_analysis
+      - horizon
+      - target
+    ForecastResponse:
+      type: object
+      properties:
+        player:
+          $ref: '#/components/schemas/Target'
+        horizon:
+          type: integer
+          description: Seasons ahead
+        as_of:
+          type: integer
+          description: Latest season of information used
+        retrospective:
+          type: boolean
+          description: True when the outcome window is already complete, so this is
+            not a true forecast
+        headline_source:
+          type: string
+          description: '''learned model'' or ''comps + base rate'' (defenders and
+            goalkeepers)'
+        range_kind:
+          type: string
+        calibrated:
+          type: boolean
+        probabilities:
+          type: array
+          items:
+            $ref: '#/components/schemas/OutcomeProbability'
+        value:
+          allOf:
+          - $ref: '#/components/schemas/ValueProjection'
+          nullable: true
+        evidence_comps:
+          type: array
+          items:
+            $ref: '#/components/schemas/Comp'
+        n_comps_used:
+          type: integer
+        caveats:
+          type: array
+          items:
+            type: string
+      required:
+      - as_of
+      - calibrated
+      - caveats
+      - evidence_comps
+      - headline_source
+      - horizon
+      - n_comps_used
+      - player
+      - probabilities
+      - range_kind
+      - retrospective
+      - value
+    Gap:
+      type: object
+      properties:
+        metric:
+          type: string
+        label:
+          type: string
+        target_pct:
+          type: number
+          format: double
+        comp_median_pct:
+          type: number
+          format: double
+        comp_p25:
+          type: number
+          format: double
+        comp_p75:
+          type: number
+          format: double
+        gap:
+          type: number
+          format: double
+          description: Target percentile minus comp median, in percentile points
+        flag:
+          type: string
+          description: '''weakness'' or ''strength'' beyond +-15 points, else empty'
+        n_comps:
+          type: integer
+      required:
+      - comp_median_pct
+      - comp_p25
+      - comp_p75
+      - flag
+      - gap
+      - label
+      - metric
+      - n_comps
+      - target_pct
+    Health:
+      type: object
+      properties:
+        status:
+          type: string
+        models_loaded:
+          type: boolean
+      required:
+      - models_loaded
+      - status
+    LeagueStrength:
+      type: object
+      properties:
+        league:
+          type: string
+        factor:
+          type: number
+          format: double
+        ci_low:
+          type: number
+          format: double
+          nullable: true
+        ci_high:
+          type: number
+          format: double
+          nullable: true
+        n_obs:
+          type: integer
+        n_movers:
+          type: integer
+      required:
+      - ci_high
+      - ci_low
+      - factor
+      - league
+      - n_movers
+      - n_obs
+    LevelPoint:
+      type: object
+      properties:
+        season:
+          type: integer
+        level:
+          type: number
+          format: double
+          description: Position-specific composite percentile, 0-100
+      required:
+      - level
+      - season
+    Meta:
+      type: object
+      properties:
+        players:
+          type: integer
+        player_seasons:
+          type: integer
+        seasons:
+          type: array
+          items:
+            type: integer
+        leagues:
+          type: array
+          items:
+            type: string
+        horizon:
+          type: integer
+        as_of:
+          type: integer
+        calibrated:
+          type: boolean
+        forecast_bootstrap_fits:
+          type: integer
+        backtest_report:
+          type: string
+          description: Path of the backtest report in the repository
+      required:
+      - as_of
+      - backtest_report
+      - calibrated
+      - forecast_bootstrap_fits
+      - horizon
+      - leagues
+      - player_seasons
+      - players
+      - seasons
+    OutcomeProbability:
+      type: object
+      properties:
+        outcome:
+          type: string
+        label:
+          type: string
+        probability:
+          type: number
+          format: double
+        p10:
+          type: number
+          format: double
+          nullable: true
+        p90:
+          type: number
+          format: double
+          nullable: true
+        comps_alone:
+          type: number
+          format: double
+          description: The same outcome read straight off the comps (backtested as
+            the weaker estimate)
+        base_rate:
+          type: number
+          format: double
+          description: Share of players of that position and age who ended up here
+      required:
+      - base_rate
+      - comps_alone
+      - label
+      - outcome
+      - p10
+      - p90
+      - probability
+    OutlookHorizon:
+      type: object
+      properties:
+        horizon:
+          type: integer
+          description: Seasons ahead
+        season:
+          type: integer
+          description: Start year of the season forecast
+        p10:
+          type: number
+          format: double
+        p50:
+          type: number
+          format: double
+        p90:
+          type: number
+          format: double
+        p_observed:
+          type: number
+          format: double
+          description: Probability he is still a 900+ minute top-5-league player then;
+            the band is conditional on it
+      required:
+      - horizon
+      - p10
+      - p50
+      - p90
+      - p_observed
+      - season
+    OutlookResponse:
+      type: object
+      properties:
+        player:
+          $ref: '#/components/schemas/Target'
+        covered:
+          type: boolean
+          description: False for defenders and goalkeepers (no composite level) and
+            players below 900 minutes
+        level_now:
+          type: number
+          format: double
+          nullable: true
+        history:
+          type: array
+          items:
+            $ref: '#/components/schemas/LevelPoint'
+        horizons:
+          type: array
+          items:
+            $ref: '#/components/schemas/OutlookHorizon'
+        model:
+          type: string
+        notes:
+          type: array
+          items:
+            type: string
+      required:
+      - covered
+      - history
+      - horizons
+      - level_now
+      - model
+      - notes
+      - player
+    PlayerProfile:
+      type: object
+      properties:
+        player_id:
+          type: integer
+        name:
+          type: string
+        position_group:
+          type: string
+          nullable: true
+        tm_player_id:
+          type: integer
+          nullable: true
+          description: Linked Transfermarkt id, when the link exists
+        birth_date:
+          type: string
+          nullable: true
+        nationalities:
+          type: array
+          items:
+            type: string
+        height_cm:
+          type: integer
+          nullable: true
+        foot:
+          type: string
+          nullable: true
+        tm_position:
+          type: string
+          nullable: true
+        latest_season:
+          type: integer
+          nullable: true
+          description: Latest season usable for comps/forecast (450+ minutes, age
+            known)
+        seasons:
+          type: array
+          items:
+            $ref: '#/components/schemas/SeasonStats'
+      required:
+      - birth_date
+      - foot
+      - height_cm
+      - latest_season
+      - name
+      - nationalities
+      - player_id
+      - position_group
+      - seasons
+      - tm_player_id
+      - tm_position
+    PlayerSearchResult:
+      type: object
+      properties:
+        player_id:
+          type: integer
+          description: Understat player id (the id used by every other endpoint)
+        name:
+          type: string
+        latest_season:
+          type: integer
+          description: Start year of the most recent season, e.g. 2024 = 2024/25
+        team:
+          type: string
+          nullable: true
+        league:
+          type: string
+        position_group:
+          type: string
+          nullable: true
+          description: GK, DEF, MID, WING_AM or FWD
+        age:
+          type: number
+          format: double
+          nullable: true
+          description: Age in that season (decimal years, mid-season)
+        minutes:
+          type: number
+          format: double
+      required:
+      - age
+      - latest_season
+      - league
+      - minutes
+      - name
+      - player_id
+      - position_group
+      - team
+    PlayerValue:
+      type: object
+      properties:
+        player_id:
+          type: integer
+        name:
+          type: string
+        position_group:
+          type: string
+          nullable: true
+        covered:
+          type: boolean
+          description: False for defenders and goalkeepers, which the lens does not
+            cover
+        seasons:
+          type: array
+          items:
+            $ref: '#/components/schemas/PricePoint'
+        reading:
+          type: string
+      required:
+      - covered
+      - name
+      - player_id
+      - position_group
+      - reading
+      - seasons
+    PricePoint:
+      type: object
+      properties:
+        season:
+          type: integer
+        team:
+          type: string
+          nullable: true
+        market_value_eur:
+          type: number
+          format: double
+          nullable: true
+        price_vs_output_pct:
+          type: number
+          format: double
+          nullable: true
+          description: '% by which his value sits below (negative) or above (positive)
+            that of peers with the same output and age; null for seasons the lens
+            does not cover'
+        standing:
+          type: string
+          nullable: true
+      required:
+      - market_value_eur
+      - price_vs_output_pct
+      - season
+      - standing
+      - team
+    SeasonStats:
+      type: object
+      properties:
+        season:
+          type: integer
+        league:
+          type: string
+        team:
+          type: string
+          nullable: true
+        position_group:
+          type: string
+          nullable: true
+        age:
+          type: number
+          format: double
+          nullable: true
+        minutes:
+          type: number
+          format: double
+        games:
+          type: integer
+          nullable: true
+        market_value_eur:
+          type: number
+          format: double
+          nullable: true
+          description: Transfermarkt squad value at the end of that season
+        per90:
+          type: object
+          additionalProperties:
+            type: number
+            format: double
+            nullable: true
+          description: Per-90 rates; *_adj are league-adjusted
+        percentiles:
+          type: object
+          additionalProperties:
+            type: number
+            format: double
+            nullable: true
+          description: 0-100 within position group and season. *_pct_global ranks
+            across leagues on league-adjusted rates; *_pct_league ranks within the
+            league. Empty below 450 minutes.
+      required:
+      - age
+      - games
+      - league
+      - market_value_eur
+      - minutes
+      - per90
+      - percentiles
+      - position_group
+      - season
+      - team
+    ShortlistResponse:
+      type: object
+      properties:
+        team:
+          type: string
+        season:
+          type: integer
+        gap:
+          $ref: '#/components/schemas/TeamDimension'
+        mapped:
+          type: boolean
+          description: False when no player metric can address this gap with the free
+            data
+        note:
+          type: string
+        ceiling_eur:
+          type: number
+          format: double
+          nullable: true
+        candidates:
+          type: array
+          items:
+            $ref: '#/components/schemas/Candidate'
+        method:
+          type: string
+      required:
+      - candidates
+      - ceiling_eur
+      - gap
+      - mapped
+      - method
+      - note
+      - season
+      - team
+    Target:
+      type: object
+      properties:
+        player_id:
+          type: integer
+        name:
+          type: string
+        season:
+          type: integer
+        league:
+          type: string
+        team:
+          type: string
+          nullable: true
+        position_group:
+          type: string
+        age:
+          type: number
+          format: double
+        minutes:
+          type: number
+          format: double
+      required:
+      - age
+      - league
+      - minutes
+      - name
+      - player_id
+      - position_group
+      - season
+      - team
+    TeamDimension:
+      type: object
+      properties:
+        dimension:
+          type: string
+        label:
+          type: string
+        percentile:
+          type: number
+          format: double
+          description: Among the league's teams that season; higher is better
+        value:
+          type: number
+          format: double
+          nullable: true
+          description: Raw per-match value (PPDA for pressing)
+        is_gap:
+          type: boolean
+        noisy:
+          type: boolean
+          description: 'Low season-to-season persistence: a gap here may be partly
+            noise'
+      required:
+      - dimension
+      - is_gap
+      - label
+      - noisy
+      - percentile
+      - value
+    TeamProfile:
+      type: object
+      properties:
+        team:
+          type: string
+        league:
+          type: string
+        season:
+          type: integer
+        points_per_match:
+          type: number
+          format: double
+        xpts_per_match:
+          type: number
+          format: double
+        xg_per_match:
+          type: number
+          format: double
+        xga_per_match:
+          type: number
+          format: double
+        dimensions:
+          type: array
+          items:
+            $ref: '#/components/schemas/TeamDimension'
+      required:
+      - dimensions
+      - league
+      - points_per_match
+      - season
+      - team
+      - xg_per_match
+      - xga_per_match
+      - xpts_per_match
+    TeamSearchResult:
+      type: object
+      properties:
+        team:
+          type: string
+        league:
+          type: string
+        latest_season:
+          type: integer
+      required:
+      - latest_season
+      - league
+      - team
+    ValueProjection:
+      type: object
+      properties:
+        now_eur:
+          type: number
+          format: double
+        p10_eur:
+          type: number
+          format: double
+        p50_eur:
+          type: number
+          format: double
+        p90_eur:
+          type: number
+          format: double
+        ceiling_eur:
+          type: number
+          format: double
+          nullable: true
+          description: Highest value in the data; projections are capped here
+        conditional_on:
+          type: string
+      required:
+      - ceiling_eur
+      - conditional_on
+      - now_eur
+      - p10_eur
+      - p50_eur
+      - p90_eur

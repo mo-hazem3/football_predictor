@@ -65,3 +65,8 @@ def test_plateau_is_a_contiguous_range_around_the_peak_and_ignores_sparse_ages()
     assert lo <= 27 <= hi and (lo, hi) == (25, 28)
     c.loc[c.age == 18, ["effect", "n_obs"]] = [5.0, 2]     # a wild estimate from 2 observations must not define the peak
     assert aging.plateau(c, tol=0.03) == (25, 28)
+
+
+def test_plateau_of_a_sparse_curve_is_none_not_an_error():
+    c = pd.DataFrame({"age": [20, 21, 22], "effect": [0.0, 0.1, 0.2], "n_obs": [3, 5, 2]})
+    assert aging.plateau(c, min_obs=30) is None

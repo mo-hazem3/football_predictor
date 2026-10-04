@@ -152,3 +152,120 @@ class MetaSerializer(serializers.Serializer):
 class HealthSerializer(serializers.Serializer):
     status = serializers.CharField()
     models_loaded = serializers.BooleanField()
+
+
+# ---------------------------------------------------------------- value lens, aging, teams
+class PricePointSerializer(serializers.Serializer):
+    season = serializers.IntegerField()
+    team = serializers.CharField(allow_null=True)
+    market_value_eur = serializers.FloatField(allow_null=True)
+    price_vs_output_pct = serializers.FloatField(
+        allow_null=True, help_text="% by which his value sits below (negative) or above (positive) that of peers with the "
+                                   "same output and age; null for seasons the lens does not cover")
+    standing = serializers.CharField(allow_null=True)
+
+
+class PlayerValueSerializer(serializers.Serializer):
+    player_id = serializers.IntegerField()
+    name = serializers.CharField()
+    position_group = serializers.CharField(allow_null=True)
+    covered = serializers.BooleanField(help_text="False for defenders and goalkeepers, which the lens does not cover")
+    seasons = PricePointSerializer(many=True)
+    reading = serializers.CharField()
+
+
+class AgingPointSerializer(serializers.Serializer):
+    age = serializers.IntegerField()
+    multiple_of_25 = serializers.FloatField()
+    lo = serializers.FloatField(allow_null=True)
+    hi = serializers.FloatField(allow_null=True)
+    n_obs = serializers.IntegerField()
+
+
+class AgingGroupSerializer(serializers.Serializer):
+    position_group = serializers.CharField()
+    label = serializers.CharField()
+    plateau_from = serializers.IntegerField(help_text="Ages within 3% of the estimated maximum (smoothed)")
+    plateau_to = serializers.IntegerField()
+    points = AgingPointSerializer(many=True)
+
+
+class AgingResponseSerializer(serializers.Serializer):
+    groups = AgingGroupSerializer(many=True)
+    notes = serializers.ListField(child=serializers.CharField())
+
+
+class TeamSearchResultSerializer(serializers.Serializer):
+    team = serializers.CharField()
+    league = serializers.CharField()
+    latest_season = serializers.IntegerField()
+
+
+class TeamDimensionSerializer(serializers.Serializer):
+    dimension = serializers.CharField()
+    label = serializers.CharField()
+    percentile = serializers.FloatField(help_text="Among the league's teams that season; higher is better")
+    value = serializers.FloatField(allow_null=True, help_text="Raw per-match value (PPDA for pressing)")
+    is_gap = serializers.BooleanField()
+    noisy = serializers.BooleanField(help_text="Low season-to-season persistence: a gap here may be partly noise")
+
+
+class TeamProfileSerializer(serializers.Serializer):
+    team = serializers.CharField()
+    league = serializers.CharField()
+    season = serializers.IntegerField()
+    points_per_match = serializers.FloatField()
+    xpts_per_match = serializers.FloatField()
+    xg_per_match = serializers.FloatField()
+    xga_per_match = serializers.FloatField()
+    dimensions = TeamDimensionSerializer(many=True)
+
+
+class CandidateSerializer(serializers.Serializer):
+    player_id = serializers.IntegerField()
+    name = serializers.CharField()
+    team = serializers.CharField(allow_null=True)
+    league = serializers.CharField()
+    position_group = serializers.CharField()
+    age = serializers.FloatField()
+    age_note = serializers.CharField()
+    minutes = serializers.FloatField()
+    fit = serializers.FloatField(help_text="Mean percentile within position on the metrics that bear on the gap")
+    market_value_eur = serializers.FloatField(allow_null=True)
+    price_vs_output_pct = serializers.FloatField(allow_null=True)
+
+
+class ShortlistResponseSerializer(serializers.Serializer):
+    team = serializers.CharField()
+    season = serializers.IntegerField()
+    gap = TeamDimensionSerializer()
+    mapped = serializers.BooleanField(help_text="False when no player metric can address this gap with the free data")
+    note = serializers.CharField(allow_blank=True)
+    ceiling_eur = serializers.FloatField(allow_null=True)
+    candidates = CandidateSerializer(many=True)
+    method = serializers.CharField()
+
+
+# ---------------------------------------------------------------- outlook (fan chart)
+class LevelPointSerializer(serializers.Serializer):
+    season = serializers.IntegerField()
+    level = serializers.FloatField(help_text="Position-specific composite percentile, 0-100")
+
+
+class OutlookHorizonSerializer(serializers.Serializer):
+    horizon = serializers.IntegerField(help_text="Seasons ahead")
+    season = serializers.IntegerField(help_text="Start year of the season forecast")
+    p10 = serializers.FloatField()
+    p50 = serializers.FloatField()
+    p90 = serializers.FloatField()
+    p_observed = serializers.FloatField(help_text="Probability he is still a 900+ minute top-5-league player then; the band is conditional on it")
+
+
+class OutlookResponseSerializer(serializers.Serializer):
+    player = TargetSerializer()
+    covered = serializers.BooleanField(help_text="False for defenders and goalkeepers (no composite level) and players below 900 minutes")
+    level_now = serializers.FloatField(allow_null=True)
+    history = LevelPointSerializer(many=True)
+    horizons = OutlookHorizonSerializer(many=True)
+    model = serializers.CharField()
+    notes = serializers.ListField(child=serializers.CharField())

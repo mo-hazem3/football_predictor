@@ -89,13 +89,15 @@ def peak_age(curve: pd.DataFrame, min_obs: int = 30) -> int:
     return int(ok.loc[ok.effect.idxmax(), "age"])
 
 
-def plateau(curve: pd.DataFrame, tol: float = 0.03, min_obs: int = 30) -> tuple[int, int]:
+def plateau(curve: pd.DataFrame, tol: float = 0.03, min_obs: int = 30) -> tuple[int, int] | None:
     """Contiguous ages around the peak whose (3-year smoothed) output is within `tol` of the maximum.
 
     Curves are flat near the top and noisy, so "peak at 24" overstates what the data can say; a range is
     honest. Smoothing matters because age 25 is the regression's reference point (exactly 0, no noise)
     and its noisy neighbours would otherwise split a plateau in two."""
     ok = curve[curve.n_obs >= min_obs].sort_values("age").reset_index(drop=True)
+    if ok.empty:  # no age has enough observations (a sparse position): there is nothing honest to report
+        return None
     eff = ok.effect.rolling(3, center=True, min_periods=2).mean()
     near = set(int(a) for a in ok.age[eff >= eff.max() + np.log(1 - tol)])
     peak = int(ok.age[eff.idxmax()])
