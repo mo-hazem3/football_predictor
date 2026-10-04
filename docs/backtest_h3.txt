@@ -1,0 +1,181 @@
+Backtest: horizon 3 seasons, origins [np.int64(2018), np.int64(2019), np.int64(2020), np.int64(2021), np.int64(2022)]. Differences are model minus baseline, with 95% intervals resampled by player: negative = model better (lower loss).
+
+=== ALL ORIGINS: 1378 targets, 852 players ===
+
+PERFORMANCE TIER (forwards, wingers/attacking mids, midfielders; n=824)
+  realised mix: {'out': 0.135, 'regular': 0.566, 'good': 0.226, 'elite': 0.074}
+  B0 base rate         Brier 0.6171   log loss 1.1759
+  B1 same level        Brier 0.5816   log loss 1.0776
+  comps                Brier 0.5984   log loss 1.1335
+  learned              Brier 0.5123   log loss 0.8965
+  learned, no value    Brier 0.5190   log loss 0.9128
+  learned, level+age   Brier 0.5385   log loss 0.9580
+  comps              - B0: Brier -0.0186 [-0.0267, -0.0101]   log loss -0.0423 [-0.0618, -0.0220]
+  comps              - B1: Brier +0.0168 [+0.0066, +0.0274]   log loss +0.0559 [+0.0307, +0.0849]
+  learned            - B0: Brier -0.1048 [-0.1371, -0.0752]   log loss -0.2794 [-0.3562, -0.2103]
+  learned            - B1: Brier -0.0693 [-0.0954, -0.0440]   log loss -0.1811 [-0.2506, -0.1203]
+  learned, no value  - B0: Brier -0.0980 [-0.1242, -0.0740]   log loss -0.2631 [-0.3325, -0.2000]
+  learned, no value  - B1: Brier -0.0626 [-0.0839, -0.0434]   log loss -0.1648 [-0.2276, -0.1123]
+  learned, level+age - B0: Brier -0.0786 [-0.1031, -0.0554]   log loss -0.2179 [-0.2852, -0.1558]
+  learned, level+age - B1: Brier -0.0432 [-0.0622, -0.0251]   log loss -0.1197 [-0.1812, -0.0684]
+  P(elite) calibration, comps:
+ predicted  observed   n
+     0.019     0.043 207
+     0.048     0.054 205
+     0.080     0.058 206
+     0.130     0.141 206
+  P(elite) calibration, learned:
+ predicted  observed   n
+     0.010     0.000 206
+     0.030     0.010 206
+     0.078     0.063 206
+     0.354     0.223 206
+
+RETENTION: no 900+ minute top-5 season within the horizon (all positions; n=1378, realised 0.128)
+  B0 base rate         Brier 0.1132
+  B1 same level        Brier 0.1105
+  comps                Brier 0.1120
+  learned              Brier 0.1003
+  learned, no value    Brier 0.1021
+  learned, level+age   Brier 0.1073
+  comps              - B0: Brier -0.0012 [-0.0031, +0.0008]
+  comps              - B1: Brier +0.0015 [-0.0008, +0.0038]
+  learned            - B0: Brier -0.0129 [-0.0168, -0.0092]
+  learned            - B1: Brier -0.0102 [-0.0133, -0.0071]
+  learned, no value  - B0: Brier -0.0111 [-0.0148, -0.0075]
+  learned, no value  - B1: Brier -0.0084 [-0.0113, -0.0056]
+  learned, level+age - B0: Brier -0.0059 [-0.0085, -0.0034]
+  learned, level+age - B1: Brier -0.0032 [-0.0050, -0.0014]
+
+MARKET VALUE: peak value in horizon / value now, given a top-5 squad place (n=1313)
+  B0 base rate   pinball 0.1808   80% interval coverage 0.806
+  B1 same value  pinball 0.1769   80% interval coverage 0.745
+  comps          pinball 0.1858   80% interval coverage 0.762
+  learned        pinball 0.1665   80% interval coverage 0.794
+  comps    - B0: pinball +0.0049 [+0.0017, +0.0083]
+  comps    - B1: pinball +0.0088 [+0.0047, +0.0130]
+  learned  - B0: pinball -0.0143 [-0.0163, -0.0122]
+  learned  - B1: pinball -0.0104 [-0.0134, -0.0072]
+
+
+=== DEVELOPMENT ORIGINS (learned models tuned here): 828 targets, 581 players ===
+
+PERFORMANCE TIER (forwards, wingers/attacking mids, midfielders; n=498)
+  realised mix: {'out': 0.129, 'regular': 0.59, 'good': 0.207, 'elite': 0.074}
+  B0 base rate         Brier 0.6013   log loss 1.1516
+  B1 same level        Brier 0.5769   log loss 1.0762
+  comps                Brier 0.5929   log loss 1.1401
+  learned              Brier 0.5098   log loss 0.8941
+  learned, no value    Brier 0.5172   log loss 0.9129
+  learned, level+age   Brier 0.5255   log loss 0.9448
+  comps              - B0: Brier -0.0084 [-0.0188, +0.0018]   log loss -0.0115 [-0.0394, +0.0175]
+  comps              - B1: Brier +0.0160 [+0.0032, +0.0287]   log loss +0.0639 [+0.0311, +0.0968]
+  learned            - B0: Brier -0.0916 [-0.1292, -0.0560]   log loss -0.2574 [-0.3511, -0.1730]
+  learned            - B1: Brier -0.0672 [-0.1000, -0.0349]   log loss -0.1821 [-0.2671, -0.1059]
+  learned, no value  - B0: Brier -0.0842 [-0.1134, -0.0562]   log loss -0.2386 [-0.3168, -0.1657]
+  learned, no value  - B1: Brier -0.0598 [-0.0861, -0.0351]   log loss -0.1633 [-0.2364, -0.1018]
+  learned, level+age - B0: Brier -0.0759 [-0.1030, -0.0498]   log loss -0.2067 [-0.2824, -0.1368]
+  learned, level+age - B1: Brier -0.0515 [-0.0752, -0.0295]   log loss -0.1314 [-0.2022, -0.0744]
+
+RETENTION: no 900+ minute top-5 season within the horizon (all positions; n=828, realised 0.126)
+  B0 base rate         Brier 0.1114
+  B1 same level        Brier 0.1111
+  comps                Brier 0.1103
+  learned              Brier 0.0995
+  learned, no value    Brier 0.1020
+  learned, level+age   Brier 0.1059
+  comps              - B0: Brier -0.0011 [-0.0036, +0.0013]
+  comps              - B1: Brier -0.0007 [-0.0037, +0.0023]
+  learned            - B0: Brier -0.0119 [-0.0163, -0.0074]
+  learned            - B1: Brier -0.0116 [-0.0155, -0.0077]
+  learned, no value  - B0: Brier -0.0094 [-0.0140, -0.0047]
+  learned, no value  - B1: Brier -0.0090 [-0.0130, -0.0052]
+  learned, level+age - B0: Brier -0.0055 [-0.0090, -0.0021]
+  learned, level+age - B1: Brier -0.0052 [-0.0078, -0.0026]
+
+MARKET VALUE: peak value in horizon / value now, given a top-5 squad place (n=790)
+  B0 base rate   pinball 0.1964   80% interval coverage 0.770
+  B1 same value  pinball 0.1944   80% interval coverage 0.704
+  comps          pinball 0.2072   80% interval coverage 0.718
+  learned        pinball 0.1809   80% interval coverage 0.754
+  comps    - B0: pinball +0.0108 [+0.0065, +0.0150]
+  comps    - B1: pinball +0.0128 [+0.0079, +0.0179]
+  learned  - B0: pinball -0.0155 [-0.0184, -0.0126]
+  learned  - B1: pinball -0.0135 [-0.0174, -0.0097]
+
+
+=== HOLDOUT ORIGINS (not used for any tuning of the learned models): 550 targets, 430 players ===
+
+PERFORMANCE TIER (forwards, wingers/attacking mids, midfielders; n=326)
+  realised mix: {'out': 0.144, 'regular': 0.528, 'good': 0.255, 'elite': 0.074}
+  B0 base rate         Brier 0.6411   log loss 1.2130
+  B1 same level        Brier 0.5888   log loss 1.0797
+  comps                Brier 0.6069   log loss 1.1235
+  learned              Brier 0.5161   log loss 0.9001
+  learned, no value    Brier 0.5219   log loss 0.9125
+  learned, level+age   Brier 0.5583   log loss 0.9780
+  comps              - B0: Brier -0.0342 [-0.0481, -0.0199]   log loss -0.0895 [-0.1195, -0.0613]
+  comps              - B1: Brier +0.0182 [+0.0018, +0.0346]   log loss +0.0439 [+0.0067, +0.0806]
+  learned            - B0: Brier -0.1250 [-0.1687, -0.0834]   log loss -0.3129 [-0.4321, -0.2150]
+  learned            - B1: Brier -0.0727 [-0.1053, -0.0418]   log loss -0.1796 [-0.2840, -0.0999]
+  learned, no value  - B0: Brier -0.1191 [-0.1589, -0.0817]   log loss -0.3005 [-0.4155, -0.2041]
+  learned, no value  - B1: Brier -0.0668 [-0.0953, -0.0407]   log loss -0.1672 [-0.2686, -0.0904]
+  learned, level+age - B0: Brier -0.0828 [-0.1210, -0.0466]   log loss -0.2350 [-0.3479, -0.1449]
+  learned, level+age - B1: Brier -0.0305 [-0.0563, -0.0059]   log loss -0.1017 [-0.2010, -0.0285]
+
+RETENTION: no 900+ minute top-5 season within the horizon (all positions; n=550, realised 0.133)
+  B0 base rate         Brier 0.1159
+  B1 same level        Brier 0.1096
+  comps                Brier 0.1145
+  learned              Brier 0.1015
+  learned, no value    Brier 0.1023
+  learned, level+age   Brier 0.1095
+  comps              - B0: Brier -0.0014 [-0.0047, +0.0019]
+  comps              - B1: Brier +0.0049 [+0.0017, +0.0085]
+  learned            - B0: Brier -0.0144 [-0.0209, -0.0079]
+  learned            - B1: Brier -0.0081 [-0.0130, -0.0031]
+  learned, no value  - B0: Brier -0.0136 [-0.0197, -0.0076]
+  learned, no value  - B1: Brier -0.0073 [-0.0114, -0.0034]
+  learned, level+age - B0: Brier -0.0064 [-0.0102, -0.0027]
+  learned, level+age - B1: Brier -0.0002 [-0.0024, +0.0021]
+
+MARKET VALUE: peak value in horizon / value now, given a top-5 squad place (n=523)
+  B0 base rate   pinball 0.1573   80% interval coverage 0.860
+  B1 same value  pinball 0.1506   80% interval coverage 0.807
+  comps          pinball 0.1534   80% interval coverage 0.828
+  learned        pinball 0.1449   80% interval coverage 0.853
+  comps    - B0: pinball -0.0040 [-0.0089, +0.0014]
+  comps    - B1: pinball +0.0028 [-0.0041, +0.0093]
+  learned  - B0: pinball -0.0125 [-0.0156, -0.0095]
+  learned  - B1: pinball -0.0057 [-0.0103, -0.0012]
+
+
+ELITE-PROBABILITY RECALIBRATION: Platt map fitted on development origins only, applied to the holdout
+  holdout Brier 0.5161 -> 0.5099   log loss 0.9001 -> 0.8885   (log loss change -0.0115 [-0.0308, +0.0121])
+  raw P(elite) in (0.00, 0.05]  n=187: raw mean 0.021 -> recalibrated 0.009, observed 0.005
+  raw P(elite) in (0.05, 0.20]  n= 84: raw mean 0.099 -> recalibrated 0.048, observed 0.071
+  raw P(elite) in (0.20, 0.50]  n= 37: raw mean 0.336 -> recalibrated 0.200, observed 0.162
+  raw P(elite) in (0.50, 1.00]  n= 18: raw mean 0.662 -> recalibrated 0.506, observed 0.611
+
+
+BY ORIGIN (performance Brier: B0 / B1 / comps / learned / learned no-value / learned level+age; n; mean comps used)
+  2018: 0.5894 / 0.5629 / 0.5852 / 0.5275 / 0.5141 / 0.5141   n=176  comps=11
+  2019: 0.5778 / 0.5475 / 0.5657 / 0.5072 / 0.5308 / 0.5316   n=156  comps=28
+  2020: 0.6361 / 0.6194 / 0.6267 / 0.4935 / 0.5075 / 0.5319   n=166  comps=28
+  2021: 0.6568 / 0.5998 / 0.6318 / 0.5280 / 0.5375 / 0.5826   n=164  comps=30
+  2022: 0.6252 / 0.5776 / 0.5818 / 0.5040 / 0.5062 / 0.5337   n=162  comps=29
+
+MOST CONFIDENT MISSES of the comps model
+  predicted elite, did not become one:
+    Youssoufa Moukoko (2022, age 18.1, FWD): P(elite)=0.25, became out
+    Moisés Caicedo (2022, age 21.2, MID): P(elite)=0.22, became regular
+    Evan Ferguson (2022, age 18.2, FWD): P(elite)=0.20, became regular
+    Demarai Gray (2018, age 22.5, WING_AM): P(elite)=0.18, became regular
+    Milot Rashica (2018, age 22.5, WING_AM): P(elite)=0.18, became regular
+  became elite, comps gave little chance:
+    Bukayo Saka (2020, age 19.3, WING_AM): P(elite)=0.01
+    Vinícius Júnior (2019, age 19.5, WING_AM): P(elite)=0.01
+    Vinícius Júnior (2020, age 20.5, WING_AM): P(elite)=0.01
+    Rodrygo (2020, age 20.0, WING_AM): P(elite)=0.01
+    Rodrygo (2019, age 19.0, WING_AM): P(elite)=0.02
+    Nicolò Barella (2019, age 22.9, MID): P(elite)=0.03

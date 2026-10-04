@@ -82,3 +82,12 @@ def test_pca_axes_are_oriented_for_readability():
     assert xy.shape == (len(x), 2) and 0 < explained.sum() <= 1
     assert loadings[0, :len(ATTACK)].sum() >= 0   # more attacking output points right
     assert loadings[1, 1] >= 0                    # chance-creators (xA) point up
+
+
+def test_max_season_keeps_only_candidates_from_that_season_or_earlier():
+    rows = _pool() + [_row(1, 2021, **{c: 0.9 for c in ATTACK}),
+                      _row(2, 2019, **{c: 0.89 for c in ATTACK}), _row(3, 2021, **{c: 0.89 for c in ATTACK})]
+    eng = SimilarityEngine(pd.DataFrame(rows))
+    assert 3 in set(eng.comps(1, 2021, k=100).player_id)
+    capped = eng.comps(1, 2021, k=100, max_season=2020)
+    assert 3 not in set(capped.player_id) and 2 in set(capped.player_id) and capped.season.max() <= 2020

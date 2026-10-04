@@ -163,14 +163,21 @@ def add_group_percentiles(df: pd.DataFrame, cols: list[str], min_minutes: int, p
     return df
 
 
-def build(conn: sqlite3.Connection, min_minutes: int = 450, n_boot: int = 300) -> tuple[pd.DataFrame, pd.DataFrame]:
-    df = add_base_features(load(conn))
+def build(conn: sqlite3.Connection, min_minutes: int = 450, n_boot: int = 300,
+          max_season: int | None = None) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Feature table. With `max_season`, only data up to that season is used *everywhere*,
+    including the league-strength factors, so the result is exactly what was knowable then."""
+    df = load(conn)
+    if max_season is not None:
+        df = df[df.season <= max_season].copy()
+    df = add_base_features(df)
     obs = league_strength.mover_observations(df)
     factors = league_strength.estimate(obs, n_boot=n_boot)
     df = add_career_context(add_league_adjustment(df, factors))
     df = add_percentiles(df, min_minutes)
     if conn.execute("SELECT 1 FROM fbref_tm_links LIMIT 1").fetchone():
-        df = add_fbref_features(df, load_fbref(conn))
+        fb = load_fbref(conn)
+        df = add_fbref_features(df, fb[fb.season <= max_season] if max_season is not None else fb)
         df = add_group_percentiles(df, FBREF_PERCENTILED, min_minutes, lambda d: d.position_group != "GK")
         df = add_group_percentiles(df, GK_PERCENTILED, min_minutes, lambda d: d.position_group == "GK")
     return df, factors

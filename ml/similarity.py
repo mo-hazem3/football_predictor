@@ -116,7 +116,8 @@ class SimilarityEngine:
             raise KeyError(f"no ranked row for player {player_id} in season {season} (>= {self.min_minutes_target} min, age known)")
         return rows.sort_values("minutes").iloc[-1]  # main league if the player appeared in two
 
-    def candidates(self, target: pd.Series, exclude_self: bool = True) -> tuple[pd.DataFrame, list[str]]:
+    def candidates(self, target: pd.Series, exclude_self: bool = True,
+                   max_season: int | None = None) -> tuple[pd.DataFrame, list[str]]:
         group = target.position_group
         cols = [c for c in (GOALKEEPING if group == "GK" else ATTACK + DEFENCE) if pd.notna(target.get(c + "__t"))]
         if len(cols) < 2:
@@ -125,12 +126,18 @@ class SimilarityEngine:
         pool = pool[pool[[c + "__t" for c in cols]].notna().all(axis=1)]
         if exclude_self:
             pool = pool[pool.player_id != target.player_id]
+        if max_season is not None:
+            pool = pool[pool.season <= max_season]
         return pool, cols
 
-    def comps(self, player_id: int, season: int, k: int = 10, unique_players: bool = True) -> pd.DataFrame:
-        """Closest player-seasons to (player, season); one row per distinct player by default."""
+    def comps(self, player_id: int, season: int, k: int = 10, unique_players: bool = True,
+              max_season: int | None = None) -> pd.DataFrame:
+        """Closest player-seasons to (player, season); one row per distinct player by default.
+
+        `max_season` restricts candidates to seasons <= that value (used to keep comps whose
+        outcomes were already known at an as-of date)."""
         t = self.target_row(player_id, season)
-        pool, cols = self.candidates(t)
+        pool, cols = self.candidates(t, max_season=max_season)
         tv = self.embed(t.to_frame().T.infer_objects(), t.position_group, cols)
         pv = self.embed(pool, t.position_group, cols)
         out = pool.assign(distance=np.sqrt(((pv - tv) ** 2).sum(axis=1))).sort_values("distance")

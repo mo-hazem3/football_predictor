@@ -72,7 +72,11 @@ def _fit(obs: pd.DataFrame, leagues: list[str]) -> np.ndarray:
 
 
 def estimate(obs: pd.DataFrame, n_boot: int = 300, seed: int = 0) -> pd.DataFrame:
-    """Factor per league with a 95% cluster-bootstrap interval, plus sample sizes."""
+    """Factor per league with a 95% cluster-bootstrap interval, plus sample sizes.
+
+    n_boot=0 skips the bootstrap (intervals are NaN): used by the backtest, which refits the
+    factors at every as-of date and only needs the point estimates.
+    """
     leagues = sorted(obs.league.unique())
     point = _fit(obs, leagues)
     rng = np.random.default_rng(seed)
@@ -85,8 +89,10 @@ def estimate(obs: pd.DataFrame, n_boot: int = 300, seed: int = 0) -> pd.DataFram
         b = pd.concat([groups[p].assign(player_id=k) for k, p in enumerate(sample)])
         if b.league.nunique() == len(leagues):
             boots.append(_fit(b, leagues))
-    boots = np.array(boots)
-    lo, hi = np.percentile(boots, [2.5, 97.5], axis=0)
+    if boots:
+        lo, hi = np.percentile(np.array(boots), [2.5, 97.5], axis=0)
+    else:
+        lo = hi = np.full(len(leagues), np.nan)
     n_obs = obs.groupby("league").size()
     return pd.DataFrame({
         "league": leagues,
