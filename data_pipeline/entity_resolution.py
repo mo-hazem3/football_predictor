@@ -25,6 +25,12 @@ class PlayerRecord:
     name: str
     birth_date: date | None = None
     nationality: str | None = None
+    clubs: frozenset[str] = frozenset()  # clubs played for in the block (league-season); source-specific spelling
+    birth_year: int | None = None  # for sources that only publish the year (FBref)
+
+    @property
+    def year(self) -> int | None:
+        return self.birth_date.year if self.birth_date else self.birth_year
 
 
 @dataclass(frozen=True)
@@ -56,6 +62,11 @@ def _score(a: PlayerRecord, b: PlayerRecord) -> float | None:
             # Strict: a different birth date is hard evidence of a different person.
             return None
         score += 10
+    elif a.year and b.year:
+        # Only a year is known on at least one side: a different year still vetoes, agreement is weaker evidence.
+        if a.year != b.year:
+            return None
+        score += 5
     if a.nationality and b.nationality:
         if a.nationality.casefold() != b.nationality.casefold():
             return None
@@ -72,11 +83,11 @@ def resolve(
     """One-to-one matching of `left` records to `right` records."""
     by_year: dict[int | None, list[PlayerRecord]] = {}
     for r in right:
-        by_year.setdefault(r.birth_date.year if r.birth_date else None, []).append(r)
+        by_year.setdefault(r.year, []).append(r)
 
     proposals: list[tuple[float, PlayerRecord, PlayerRecord]] = []
     for l in left:
-        pool = list(right) if l.birth_date is None else by_year.get(l.birth_date.year, []) + by_year.get(None, [])
+        pool = list(right) if l.year is None else by_year.get(l.year, []) + by_year.get(None, [])
         scored = sorted(
             ((s, r) for r in pool if (s := _score(l, r)) is not None),
             key=lambda x: -x[0],
@@ -96,4 +107,75 @@ def resolve(
             continue
         used_right.add(key)
         matches.append(Match(l, r, score))
+    return matches
+
+
+# ---------------------------------------------------------------- club-aware second pass
+#
+# Name-only matching cannot resolve nicknames ('Alex Grimaldo' vs 'Alejandro
+# Grimaldo'). Club is strong evidence, but the two sources spell clubs
+# differently and we do not want a hand-written alias table. So: learn the
+# club mapping from the unambiguous name matches, then use it to resolve what
+# is left inside each club, where the candidate pool is only a handful of players.
+
+
+def learn_club_map(matches: list[Match], min_support: int = 3, min_share: float = 0.6) -> dict[str, str]:
+    """Left-club -> right-club, by co-occurrence among confident matches.
+
+    A pair is kept only when the right club accounts for at least `min_share`
+    of that left club's matched players and has `min_support` of them.
+    """
+    counts: dict[str, dict[str, int]] = {}
+    for m in matches:
+        for lc in m.left.clubs:
+            for rc in m.right.clubs:
+                counts.setdefault(lc, {}).setdefault(rc, 0)
+                counts[lc][rc] += 1
+    club_map = {}
+    for lc, rcs in counts.items():
+        rc, n = max(rcs.items(), key=lambda kv: kv[1])
+        if n >= min_support and n / sum(rcs.values()) >= min_share:
+            club_map[lc] = rc
+    return club_map
+
+
+def resolve_within_clubs(
+    left: list[PlayerRecord],
+    right: list[PlayerRecord],
+    club_map: dict[str, str],
+    threshold: float = 70.0,
+    margin: float = 10.0,
+) -> list[Match]:
+    """Match leftover players inside their (mapped) club, with a relaxed name threshold.
+
+    Safety nets compensate for the lower threshold: candidates must come from
+    the player's own club, must share at least one exact name token (usually
+    the surname), and must beat the runner-up by `margin`.
+    """
+    by_club: dict[str, list[PlayerRecord]] = {}
+    for r in right:
+        for c in r.clubs:
+            by_club.setdefault(c, []).append(r)
+
+    proposals: list[tuple[float, PlayerRecord, PlayerRecord]] = []
+    for l in left:
+        pool = {id(r): r for lc in l.clubs if (rc := club_map.get(lc)) for r in by_club.get(rc, [])}
+        l_tokens = set(normalize_name(l.name).split())
+        scored = sorted(
+            ((s, r) for r in pool.values()
+             if l_tokens & set(normalize_name(r.name).split()) and (s := _score(l, r)) is not None),
+            key=lambda x: -x[0],
+        )
+        if not scored or scored[0][0] < threshold:
+            continue
+        if len(scored) > 1 and scored[0][0] - scored[1][0] < margin:
+            continue
+        proposals.append((scored[0][0], l, scored[0][1]))
+
+    used: set[tuple[str, str]] = set()
+    matches = []
+    for score, l, r in sorted(proposals, key=lambda p: -p[0]):
+        if (r.source, r.source_id) not in used:
+            used.add((r.source, r.source_id))
+            matches.append(Match(l, r, score))
     return matches

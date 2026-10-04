@@ -45,3 +45,54 @@ def test_one_to_one_assignment():
     right = [rec("f", "a", "Karim Benzema", date(1987, 12, 19))]
     # Two identical left records compete for one right record -> at most one match
     assert len(resolve(left, right)) <= 1
+
+
+# ---- club-aware second pass --------------------------------------------------
+
+from data_pipeline.entity_resolution import Match, learn_club_map, resolve_within_clubs
+
+
+def _p(src, i, name, *clubs):
+    return PlayerRecord(src, str(i), name, clubs=frozenset(clubs))
+
+
+def test_learn_club_map_needs_support_and_dominant_partner():
+    ms = [Match(_p("u", i, "a", "RB Leipzig"), _p("t", i, "a", "RasenBallsport Leipzig"), 100) for i in range(3)]
+    ms += [Match(_p("u", 9, "x", "Hoffenheim"), _p("t", 9, "x", "TSG 1899 Hoffenheim"), 100)]  # support 1 < 3
+    assert learn_club_map(ms) == {"RB Leipzig": "RasenBallsport Leipzig"}
+
+
+def test_club_pass_resolves_nickname_inside_mapped_club_only():
+    cmap = {"Leverkusen": "Bayer 04 Leverkusen"}
+    left = [_p("u", 1, "Alex Grimaldo", "Leverkusen")]
+    right = [
+        _p("t", 1, "Alejandro Grimaldo", "Bayer 04 Leverkusen"),
+        _p("t", 2, "Alejandro Garnacho", "Manchester United"),
+    ]
+    assert [m.right.source_id for m in resolve_within_clubs(left, right, cmap)] == ["1"]
+    # same nickname but the real player is at another club: must not match
+    assert resolve_within_clubs(left, right[1:], cmap) == []
+
+
+def test_club_pass_requires_shared_token_and_clear_winner():
+    cmap = {"A": "A FC"}
+    assert resolve_within_clubs([_p("u", 1, "Julian Chabot", "A")], [_p("t", 1, "Jeff Schabot", "A FC")], cmap) == []
+    twins = [_p("t", 1, "Gabriel Paulista", "A FC"), _p("t", 2, "Gabriel Magalhaes", "A FC")]
+    assert resolve_within_clubs([_p("u", 1, "Gabriel", "A")], twins, cmap) == []  # ambiguous -> refuse
+
+
+# ---- birth year only (FBref) -------------------------------------------------
+
+def test_birth_year_vetoes_and_boosts_when_no_full_date():
+    a = PlayerRecord("fbref", "1", "Jamal Musiala", birth_year=2003)
+    full = PlayerRecord("tm", "1", "Jamal Musiala", date(2003, 2, 26))
+    other_year = PlayerRecord("tm", "2", "Jamal Musiala", date(2004, 2, 26))
+    assert resolve([a], [other_year]) == []
+    m = resolve([a], [full, other_year])
+    assert [x.right.source_id for x in m] == ["1"]
+
+
+def test_full_dates_still_take_precedence_over_year():
+    a = PlayerRecord("x", "1", "Same Name", date(2000, 5, 1))
+    b = PlayerRecord("y", "1", "Same Name", date(2000, 6, 1), birth_year=2000)
+    assert resolve([a], [b]) == []  # same year, different full date -> different person

@@ -7,10 +7,14 @@ dependencies = [
     "requests>=2.31",
     "pandas>=2.0",
     "rapidfuzz>=3.0",
+    "beautifulsoup4>=4.12",
+    "lxml>=5.0",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0"]
+fbref = ["soccerdata>=1.8"]
+viz = ["matplotlib>=3.8", "adjustText>=1.1"]
+dev = ["pytest>=8.0", "matplotlib>=3.8", "adjustText>=1.1"]
 
 [tool.setuptools.packages.find]
 include = ["data_pipeline*", "features*", "ml*"]
