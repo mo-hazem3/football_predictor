@@ -19,13 +19,17 @@ _INT = ["games", "time", "goals", "assists", "shots", "key_passes", "yellow_card
 _FLOAT = ["xG", "xA", "npxG", "xGChain", "xGBuildup"]
 
 
-def fetch_league_season(league: str, season: int) -> list[dict]:
-    data = get_json(
+def fetch_league_payload(league: str, season: int) -> dict:
+    """The whole league payload ('players', 'teams' with per-match history, 'dates'); cached on disk."""
+    return get_json(
         URL.format(league=league, season=season),
         headers={"X-Requested-With": "XMLHttpRequest", "Referer": f"https://understat.com/league/{league}/{season}"},
         min_interval=MIN_INTERVAL_S,
     )
-    return data["players"]
+
+
+def fetch_league_season(league: str, season: int) -> list[dict]:
+    return fetch_league_payload(league, season)["players"]
 
 
 def to_frame(players: list[dict], league: str, season: int) -> pd.DataFrame:

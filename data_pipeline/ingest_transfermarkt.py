@@ -69,14 +69,22 @@ def pending_history_players(conn: sqlite3.Connection, min_minutes: int) -> list[
     )]
 
 
-def ingest_history(conn: sqlite3.Connection, limit: int | None, min_minutes: int) -> int:
-    pending = pending_history_players(conn, min_minutes)
+def ingest_history(conn: sqlite3.Connection, limit: int | None, min_minutes: int,
+                   players: list[int] | None = None, values_only: bool = False) -> int:
+    """Fetch per-player history. `players` overrides the minutes-based selection (ids that already have
+    market values are skipped); `values_only` skips the transfer-history request (half the requests)."""
+    if players is not None:
+        have = {r[0] for r in conn.execute("SELECT DISTINCT tm_player_id FROM transfermarkt_market_values")}
+        pending = [p for p in players if p not in have]
+    else:
+        pending = pending_history_players(conn, min_minutes)
     if limit:
         pending = pending[:limit]
     done = 0
     for pid in pending:
         try:
-            values, transfers = tm.fetch_market_values(pid), tm.fetch_transfers(pid)
+            values = tm.fetch_market_values(pid)
+            transfers = [] if values_only else tm.fetch_transfers(pid)
         except Exception as exc:
             print(f"  skip player {pid}: {exc}")
             continue
@@ -98,13 +106,22 @@ def main(argv=None) -> int:
     ap.add_argument("--history-limit", type=int, help="cap the number of players fetched in this run")
     ap.add_argument("--min-minutes", type=int, default=900,
                     help="history only for players with at least this many Understat minutes (default 900 ~ 10 full games)")
+    ap.add_argument("--players-file", help="history for exactly these Transfermarkt ids (one per line) instead of the minutes-based selection")
+    ap.add_argument("--values-only", action="store_true", help="market-value history only, no transfer history")
+    ap.add_argument("--skip-squads", action="store_true", help="do not (re)ingest squads first")
     ap.add_argument("--db", default=str(db.DEFAULT_DB))
     args = ap.parse_args(argv)
 
     conn = db.connect(args.db)
-    print(f"Stored {ingest_squads(conn, args.leagues, *args.seasons)} squad rows.")
-    if args.history:
-        print(f"Loaded history for {ingest_history(conn, args.history_limit, args.min_minutes)} players.")
+    if not args.skip_squads:
+        print(f"Stored {ingest_squads(conn, args.leagues, *args.seasons)} squad rows.")
+    if args.history or args.players_file:
+        players = None
+        if args.players_file:
+            with open(args.players_file, encoding="utf-8") as f:
+                players = [int(line) for line in f if line.strip()]
+        n = ingest_history(conn, args.history_limit, args.min_minutes, players=players, values_only=args.values_only)
+        print(f"Loaded history for {n} players.")
     return 0
 
 

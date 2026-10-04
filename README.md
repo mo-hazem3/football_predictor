@@ -32,6 +32,10 @@ python -m ml.evaluate_similarity                                        # label-
 python -m ml.visualize                                                  # PCA sanity figure -> docs/comps_pca.png
 python -m ml.project "Lamine Yamal" --season 2024                       # forecast: probabilities + value range + comps as evidence
 python -m ml.backtest --out docs/backtest_h3.txt --calibration-out docs/elite_calibration.json   # rolling-origin backtest (~6 min)
+python -m data_pipeline.ingest_understat_teams                          # team style data (~20 min, cached)
+python -m ml.plot_aging                                                 # aging curves figure
+python -m ml.evaluate_value_lens --horizon 1                            # value-vs-performance backtest
+python -m ml.team_report "Burnley" --season 2023                       # team style, gaps, candidate shortlists
 pytest
 ```
 
@@ -179,8 +183,50 @@ Failure cases, not hidden:
 - **Definitions matter:** "elite" is a stats composite at a fixed cut (top decile); "out" mixes injury, retirement and moving to a league outside the data; market value is only observed while on a top-5 squad; forecasts are capped at the highest value in the data (EUR 200m) because too few players sit near the top for the model to learn a ceiling. The 80% value interval covers 79% overall.
 - **Scope:** top-5 leagues only, a 3-season horizon, attacking composites for outfield players. Lower-league and non-European origins (the Hamza Abdelkarim case) need other data.
 
+## Beyond the comps: aging, value and team needs
+
+The backtest above showed that "find the statistical twins" adds little for predicting a career. These three pieces are what the data supports instead. Each was tested out of sample or against a baseline, and the negative results are kept.
+
+### Aging curves (`ml/aging.py`)
+
+How a player's attacking output changes with age, estimated **within player** (the same people as they get older, so cohorts do not mix), league-adjusted, normalised to the same-season position mean, with a 95% bootstrap band:
+
+![Aging curves by position](docs/aging_curves.png)
+
+Output stays within 3% of its maximum for ages 23 to 30 (forwards), 24 to 29 (wingers and attacking mids), 24 to 27 (midfielders) and 23 to 26 (defenders, for attacking involvement). By 33, forwards produce about 90% of their age-25 output, midfielders 78% and defenders 67%. A single "peak age" is not well determined (the curves are flat and noisy near the top), so the plateau is reported instead. Survivorship flatters the older ages: players who decline stop getting 900 minutes and leave the sample.
+
+**Does the curve help forecast?** Rolling-origin test, 1 to 3 seasons ahead, by age band. Regression to the mean does nearly all the work: shrinking a player's last output toward the position mean cuts next-season error by about 9% versus assuming persistence (it wins in 19 of 20 position-origin cells; about 70% of a player's relative output carries over from one season to the next, 54% for defenders). Adding the aging curve on top changes error by under 3% almost everywhere: slightly better for players 22 and under three seasons out (-2.4%), worse for players 30 and over three seasons out (+6.0%). The curve describes aging well and forecasts it poorly, because a year of aging moves output by 5 to 10% while season-to-season noise is far larger.
+
+### Value versus performance (`ml/value_lens.py`, `ml/evaluate_value_lens.py`)
+
+A pricing model predicts a player's market value from current output (the attacking composite and last season's), age, minutes, league and position; the gap between actual and predicted value is how far he is priced below ("underpriced") or above ("overpriced") peers who produce the same. Covers forwards, wingers and midfielders. The question is whether the gap predicts what happens to the value next. Protocol: at each origin from 2016 to 2023 the model is refit on data up to that season and **cross-fitted by player** (a residual never comes from a model that saw that player), then the value change is compared across residual groups within each position and season.
+
+**First result: +24% over one season, and the check that cut it down.** Players in the most underpriced decile gained about 12.7% in value over the next season, the most overpriced lost 9.2%, a gap of 24% (95% interval +0.147 to +0.278 log points). But the change is only visible for players who stay on a top-5 squad, and only 64% of the most underpriced were still there a year later against 95% of the most overpriced: cheap players churn out of the leagues far more. If leavers had been losing half their value, the whole effect would vanish. So the leavers were measured instead of guessed: Transfermarkt's value history follows a player after he leaves (the 15 June value reproduces the season-end squad value for 93% of players exactly), and it was fetched for every leaver in the extreme deciles.
+
+**Corrected result** (everyone in the deciles, leavers included, value change net of the same position-season average):
+
+| Horizon | Most underpriced minus most overpriced | 95% interval | Was (stayers only) |
+|---|---|---|---|
+| 1 season | **+19%** | +0.115 to +0.240 log points | +24% |
+| 2 seasons | **+33%** | +0.191 to +0.403 | +51% |
+| 3 seasons | +45% | +0.170 to +0.524 | +78% |
+
+Underpriced players who left the five leagues lost about 22% of their value on average (-0.25 log points) over a season, versus a 4% gain for those who stayed, so survivorship was real but moderate. The effect is positive for forwards, wingers and midfielders alike at one and two seasons, and in both halves of the sample, but weaker in 2020 to 2023 (+0.128 at one season) than in 2016 to 2019 (+0.219); at three seasons the interval touches zero for midfielders and for the recent origins. The residual stays strongly predictive (t of about -11) after controlling for starting value and age.
+
+What it does and does not say. This is about **Transfermarkt's value estimate** catching up with production, not about transfer fees or a club's profit; value is revised a few times a year so part of any gap is lag; and cheap players have a floor to fall to while expensive ones do not, which the starting-value control only partly addresses. Defenders and goalkeepers are not covered. Treat it as "who is priced low for what he does", a screen to look at, not a buy signal.
+
+### Team style and needs (`features/team_style.py`, `ml/signings.py`, `ml/recruit.py`)
+
+**Data.** Understat's team endpoint, which the free pipeline had not used, gives every team-season (1,170 across the five leagues) what a team creates and concedes split by situation, attack speed (fast / normal / slow) and shot zone, plus PPDA and deep completions per match. That is broader than StatsBomb's open event data, which covers a single Bundesliga season for one club. No new scraping beyond about 1,200 requests, cached.
+
+**Profile and gaps.** Ten dimensions (open-play chance creation, transition threat, set-piece threat, penetration near goal, shot quality; open-play, counter and set-piece defending, territory conceded; pressing), each ranked against the league that season, oriented so higher is better. A gap is a dimension in the bottom quartile. Face validity: Leicester 2015 is at the 100th percentile for transition threat, Burnley 2017 near the bottom for transition and penetration, Manchester City 2018 tops pressing and penetration, Atletico Madrid 2018 has strong set pieces (95th) with low pressing (25th). Style persists season to season for pressing (r = 0.72), penetration (0.85), shot quality (0.61) and open-play defending (0.64), but much less for transition (0.40) and set pieces (0.33), so gaps on those two are flagged as noisy.
+
+**Do signings fix gaps? (`ml/signings.py`)** The recruitment idea needs the players a team brings in to move the dimension they are bought for. An observational test on 922 team transitions: do arrivals and departures (what they were good at, as percentiles within position) explain the change in each dimension beyond regression to the mean, scored out of sample grouped by team? **A first version said yes, strongly (+15.6 points of R-squared), and that was wrong.** It scored arrivals on the season in which they play for the new club, but a team's xG is literally the sum of its players' xG, so that is an accounting identity, not a signal. Redone with what a recruiter could have known (arrivals judged on their previous season, weighted by previous minutes; arrivals with no prior top-5 season as a separate "unknown" feature), the gain falls to **+3.0 points on average (+1.7 to +4.5, positive in all 10 dimensions)**. The one clearly supported association is intuitive: creative and progressive arrivals (xA, xG build-up) raise open-play chance creation. The rest of the player-metric to team-dimension map is mostly noise, and arrivals with no prior top-5 history are associated with *worse* team percentiles.
+
+**Recruitment shortlist (`python -m ml.team_report "Burnley" --season 2023`).** Given that evidence, the shortlist is deliberately a labelled heuristic: for each gap it ranks candidates (suitable positions, age at most 29) by their percentile on the metrics that plausibly drive the gap, capped at the market value of the club's most valuable player so that it recommends players the club could plausibly buy, and shows price versus output and where the age sits on the position's plateau. It does **not** claim a signing closes the gap, and set-piece defending is reported as unmappable (the free data has no aerial duels or marking). For Burnley 2023/24 (gaps in chance creation, penetration, shot quality and defending) it surfaces players such as Aleksey Miranchuk, Angel Correa, Jacob Murphy and, for the back line, Mallorca's Copete at EUR 2.8m.
+
 ## Known gaps
 
 - StatsBomb is not yet linked to Transfermarkt (it has no club-season squad table to block on).
-- Per-player history is fetched only for players with 900+ Understat minutes (`--min-minutes`), not the full ~9,400.
+- Per-player value history covers about 2,150 players (the most-played first, plus every leaver in the extreme value-lens deciles); the rest of the ~9,400 are not fetched.
 - A few players are missing from Transfermarkt squad pages (e.g. short loans); they stay unlinked rather than guessed.

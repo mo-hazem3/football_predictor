@@ -111,6 +111,32 @@ CREATE TABLE IF NOT EXISTS fbref_tm_links (
     score REAL NOT NULL, stage TEXT NOT NULL,
     PRIMARY KEY (league, season, player_name, born)
 );
+CREATE TABLE IF NOT EXISTS team_matches (
+    league TEXT NOT NULL, season INTEGER NOT NULL, team TEXT NOT NULL, match_date TEXT NOT NULL,
+    home INTEGER NOT NULL,
+    xg REAL, xga REAL, npxg REAL, npxga REAL,
+    ppda_att INTEGER, ppda_def INTEGER,                 -- opponent passes allowed per defensive action: att/def (lower = more pressing)
+    ppda_allowed_att INTEGER, ppda_allowed_def INTEGER, -- the same ratio for the opponent's pressing of this team
+    deep INTEGER, deep_allowed INTEGER,                 -- completed passes/crosses within ~20 yards of the goal
+    scored INTEGER, missed INTEGER, xpts REAL, pts INTEGER,
+    PRIMARY KEY (league, season, team, match_date)
+);
+CREATE TABLE IF NOT EXISTS team_style (
+    league TEXT NOT NULL, season INTEGER NOT NULL, team TEXT NOT NULL,
+    grp TEXT NOT NULL,   -- situation | attackSpeed | shotZone | timing | gameState | formation | result
+    stat TEXT NOT NULL,  -- e.g. OpenPlay, Fast, shotOboxTotal, '4-3-3'
+    time INTEGER,        -- minutes (formation and gameState only)
+    shots INTEGER, goals INTEGER, xg REAL,
+    against_shots INTEGER, against_goals INTEGER, against_xg REAL,
+    PRIMARY KEY (league, season, team, grp, stat)
+);
+CREATE TABLE IF NOT EXISTS team_players (
+    league TEXT NOT NULL, season INTEGER NOT NULL, team TEXT NOT NULL,
+    understat_player_id INTEGER NOT NULL, player_name TEXT NOT NULL, position TEXT,
+    games INTEGER, minutes INTEGER, goals INTEGER, assists INTEGER, shots INTEGER, key_passes INTEGER,
+    xg REAL, xa REAL, npxg REAL, xg_chain REAL, xg_buildup REAL,   -- at THIS club (mid-season movers are split, unlike understat_player_seasons)
+    PRIMARY KEY (league, season, team, understat_player_id)
+);
 CREATE INDEX IF NOT EXISTS idx_tm_squads_name ON transfermarkt_squads(player_name);
 CREATE INDEX IF NOT EXISTS idx_pss_name ON player_season_stats(player_name);
 """

@@ -15,3 +15,6 @@ dist/
 
 # scrape/ingest logs
 data/*.log
+data/*.txt
+backend/db.sqlite3
+backend/staticfiles/
