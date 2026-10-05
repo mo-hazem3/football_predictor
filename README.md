@@ -1,7 +1,7 @@
 # Football player comps & trajectory projection
 
 A scouting-analytics tool built on free data: it finds statistically similar football players (controlling for age, league quality and position), forecasts where a player's level is heading as a **fan chart with an uncertainty band**, flags players priced below what they produce, and profiles a team's style to show where it is weak.
-> Status: pipeline, features, models, backtests, Django API and React app are built and tested (153 Python + 30 frontend tests, CI on both). **Not deployed yet**; run it locally with `.\start.cmd` (see below).
+> Status: pipeline, features, models, backtests, Django API and React app are built and tested (153 Python + 30 frontend tests, CI on both). It is designed as a **local tool**: the data is scraped into a 70 MB SQLite file on your machine, and `.\start.cmd` (Windows) starts the API and the web app with one command. Screenshots and example outputs are below.
 
 ## What this project is really about
 
@@ -20,6 +20,28 @@ Three problems that decide whether a tool like this can be trusted, and how each
 | Fan chart vs shrinkage baseline (pinball, 1 to 3 seasons ahead) | 3.94 / 4.20 / 4.42 vs 4.16 / 4.49 / 4.57 |
 | Most vs least underpriced decile, value change after correcting for leavers | +19% (1 season), +33% (2 seasons) |
 | Do signings explain team style change? | about +3 R-squared points, not a recruitment guarantee |
+
+## What you can do with it
+
+Real outputs from the running app (data through the 2025/26 season in the five leagues).
+
+![Player page](docs/screenshot_player.png)
+
+**1. Where is a player heading?** Search "Lamine Yamal". His league-adjusted attacking level is the 98.7th percentile among wingers and attacking midfielders. The outlook for next season is a band, not a number: 10% / median / 90% of **75 / 97 / 99**, widening to **59 / 98 / 100** two seasons out, with a 97% chance he is still a 900+ minute regular in the five leagues. The three-season forecast from his 2024/25 season reads *elite 53% (model range 44 to 64%), good 42%, regular 5%, out 0.1%*, with the comparable players next to it: on their own they would have said 8% elite, which is why the backtest below demotes them to evidence.
+
+**2. Who is he like, and where does he differ?** `python -m ml.comps "Lamine Yamal" --season 2024` lists his closest comps at the same age and position (Ansu Fati 2019, Mastantuono 2025, Mathys Tel 2023, Lennart Karl 2025, Musiala 2021, Wirtz 2021), what each became, and a strengths-and-gaps chart against them. For Erling Haaland at 20 the gaps read as a pure striker: +19 percentile points on non-penalty xG, -18 to -23 on tackles, interceptions and crosses.
+
+**3. Is he priced fairly for what he produces?** The player page compares market value with what peers of the same position, age and output cost. For Yamal the page labels 2023 "overpriced" and 2024 and 2025 "fairly priced". Across all players, the most underpriced decile later gained 19% more value in a year than the most overpriced (see *Value versus performance* for the survivorship check behind that number).
+
+**4. What does a team lack?** Open **Teams**, choose Burnley and 2023/24: 0.63 points per match against 0.89 expected, and a style profile ranked against the league. The weak spots are shot quality (5th percentile), open-play chance creation (15th), penetration near goal (20th) and open-play defending (20th); transition and set-piece threat are also low but flagged as noisy dimensions. The shortlist then ranks affordable players for a chosen gap (it surfaces Aleksey Miranchuk, Angel Correa and Jacob Murphy for attack and Mallorca's Copete at EUR 2.8m for the back line), labelled as a heuristic because the signings test found only a weak link between signings and style change.
+
+![Team page](docs/screenshot_team.png)
+
+**5. How do players age?** **Insights** shows aging curves by position: forwards hold within 3% of their peak output from 23 to 30, midfielders only from 24 to 27, and by 33 forwards produce about 90% of their age-25 output, midfielders 78%.
+
+**6. Why should I trust any of it?** **Method** lists every claim that was tested and whether it held up. The comps, for instance, did not.
+
+The same results are available without the UI: every page is an API endpoint (`http://127.0.0.1:8000/api/docs/`) and the main analyses are command-line tools (`python -m ml.project`, `ml.team_report`, `ml.comps`, see the Quick start).
 
 ## Layout
 
@@ -353,7 +375,7 @@ Design decisions worth knowing:
 ## Known gaps
 
 - StatsBomb is not yet linked to Transfermarkt (it has no club-season squad table to block on).
-- **Deployment is not done.** The plan is the Django API on Render or Railway (with `PRELOAD_MODELS=1` and a prebuilt `forecaster.pkl`, or a build step) and the frontend on Vercel (`VITE_API_URL`, with that origin in `CORS_ALLOWED_ORIGINS`). There is no live demo link yet.
+- **Local by design, not hosted.** The app runs on your machine because the data is scraped and cached locally (a 70 MB database plus a 46 MB model cache). The two halves are still independently deployable (the API reads `PRELOAD_MODELS`, `CORS_ALLOWED_ORIGINS` and friends from the environment; the frontend reads `VITE_API_URL`), but no hosted demo exists.
 - Per-player value history covers about 5,500 of the ~9,400 players (most-played first; the fetch is resumable). The value-lens results above were computed on the smaller set available at the time, plus every leaver in the extreme deciles.
 - The Egyptian-league case study and the Hamza Abdelkarim test (an 18-year-old Egyptian striker who came through Al Ahly's academy and now plays for Barcelona's reserve side) are not done: they need lower-league and non-European data that the free sources here do not provide.
 - Pathway features from transfer history (origin club tier, reserve versus first-team football) are not in the similarity engine yet.
