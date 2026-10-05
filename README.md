@@ -284,9 +284,9 @@ A pricing model predicts a player's market value from current output (the attack
 |---|---|---|---|
 | 1 season | **+19%** | +0.115 to +0.240 log points | +24% |
 | 2 seasons | **+33%** | +0.191 to +0.403 | +51% |
-| 3 seasons | +45% | +0.170 to +0.524 | +78% |
+| 3 seasons | +42% | +0.183 to +0.525 | +78% |
 
-Underpriced players who left the five leagues lost about 22% of their value on average (-0.25 log points) over a season, versus a 4% gain for those who stayed, so survivorship was real but moderate. The effect is positive for forwards, wingers and midfielders alike at one and two seasons, and in both halves of the sample, but weaker in 2020 to 2023 (+0.128 at one season) than in 2016 to 2019 (+0.219); at three seasons the interval touches zero for midfielders and for the recent origins. The residual stays strongly predictive (t of about -11) after controlling for starting value and age.
+Underpriced players who left the five leagues lost about 22% of their value on average (-0.25 log points) over a season, versus a 4% gain for those who stayed, so survivorship was real but moderate. The effect is positive for forwards, wingers and midfielders alike at one and two seasons, and in both halves of the sample, but weaker in 2020 to 2023 (+0.128 at one season) than in 2016 to 2019 (+0.219); at three seasons midfielders are borderline (+0.259, interval +0.003 to +0.507) and the recent origins include zero (+0.203, -0.032 to +0.427). The residual stays strongly predictive (t of about -11 at one season, -8 at three) after controlling for starting value and age.
 
 What it does and does not say. This is about **Transfermarkt's value estimate** catching up with production, not about transfer fees or a club's profit; value is revised a few times a year so part of any gap is lag; and cheap players have a floor to fall to while expensive ones do not, which the starting-value control only partly addresses. Defenders and goalkeepers are not covered. Treat it as "who is priced low for what he does", a screen to look at, not a buy signal.
 
@@ -309,7 +309,7 @@ pip install -e ".[dev]"                          # includes Django, DRF, drf-spe
 cd backend
 export DJANGO_DEBUG=1                            # or set DJANGO_SECRET_KEY (required when DEBUG is off)
 python manage.py migrate                         # Django's own tables (admin login) only; the pipeline DB is never migrated
-python manage.py build_forecast_cache            # fit once (~95 s), pickle to data/cache/forecaster.pkl (46 MB)
+python manage.py build_forecast_cache            # fit once (~95 s), pickle to data/cache/forecaster.pkl (55 MB)
 python manage.py runserver                       # http://127.0.0.1:8000/api/docs/  (Swagger UI),  /admin/
 ```
 
@@ -375,8 +375,8 @@ Design decisions worth knowing:
 ## Known gaps
 
 - StatsBomb is not yet linked to Transfermarkt (it has no club-season squad table to block on).
-- **Local by design, not hosted.** The app runs on your machine because the data is scraped and cached locally (a 70 MB database plus a 46 MB model cache). The two halves are still independently deployable (the API reads `PRELOAD_MODELS`, `CORS_ALLOWED_ORIGINS` and friends from the environment; the frontend reads `VITE_API_URL`), but no hosted demo exists.
-- Per-player value history covers about 5,500 of the ~9,400 players (most-played first; the fetch is resumable). The value-lens results above were computed on the smaller set available at the time, plus every leaver in the extreme deciles.
+- **Local by design, not hosted.** The app runs on your machine because the data is scraped and cached locally (a 70 MB database plus a 55 MB model cache). The two halves are still independently deployable (the API reads `PRELOAD_MODELS`, `CORS_ALLOWED_ORIGINS` and friends from the environment; the frontend reads `VITE_API_URL`), but no hosted demo exists.
+- Per-player value and transfer history covers the 5,980 players with 900+ career minutes (170k value points, 69k transfers); the other ~3,400 linked players have only squad-page values. The value-lens results above were re-run on this full history: the one- and two-season results are unchanged, and the three-season result moved from +45% to +42%.
 - The Egyptian-league case study and the Hamza Abdelkarim test (an 18-year-old Egyptian striker who came through Al Ahly's academy and now plays for Barcelona's reserve side) are not done: they need lower-league and non-European data that the free sources here do not provide.
 - Pathway features from transfer history (origin club tier, reserve versus first-team football) are not in the similarity engine yet.
 - A few players are missing from Transfermarkt squad pages (e.g. short loans); they stay unlinked rather than guessed.
