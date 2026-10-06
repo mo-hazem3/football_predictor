@@ -25,6 +25,8 @@ Three problems that decide whether a tool like this can be trusted, and how each
 
 Real outputs from the running app (data through the 2025/26 season in the five leagues).
 
+![Home page](docs/screenshot_home.png)
+
 ![Player page](docs/screenshot_player.png)
 
 **1. Where is a player heading?** Search "Lamine Yamal". His league-adjusted attacking level is the 98.7th percentile among wingers and attacking midfielders. The outlook for next season is a band, not a number: 10% / median / 90% of **75 / 97 / 99**, widening to **59 / 98 / 100** two seasons out, with a 97% chance he is still a 900+ minute regular in the five leagues. The three-season forecast from his 2024/25 season reads *elite 53% (model range 44 to 64%), good 42%, regular 5%, out 0.1%*, with the comparable players next to it: on their own they would have said 8% elite, which is why the backtest below demotes them to evidence.
@@ -53,7 +55,7 @@ The same results are available without the UI: every page is an API endpoint (`h
 | `backend/` | Django 5 + DRF read-only API, admin over the pipeline DB, management-command wrappers, API tests |
 | `frontend/` | React 19 + TypeScript single-page app (Vite, TanStack Query, Recharts) |
 | `tests/` | 94 tests for the pipeline, features and models |
-| `docs/` | backtest outputs, figures, screenshots, the OpenAPI schema |
+| `docs/` | backtest outputs, figures, screenshots (home, player in light and dark, team), the OpenAPI schema |
 | `start.cmd`, `start.ps1` | one-command local launcher (Windows) |
 
 ## Quick start
@@ -355,7 +357,7 @@ npm run gen:api                # regenerate src/api/schema.d.ts from docs/openap
 
 | Page | What it shows |
 |---|---|
-| `/` | search with autocomplete, what the app does, a link to what failed |
+| `/` | search with autocomplete, one-click example players, live dataset size, what the app does, a link to what failed |
 | `/players/:id` | profile, **outlook fan chart**, outcome probabilities with ranges, the comparable players and what they became, strengths and gaps against them, price versus output, season table; season picker |
 | `/teams?team=&season=` | the ten tactical dimensions against the league, gaps in red, and a filterable shortlist (gap, max age, budget) |
 | `/insights` | aging curves by position, league-strength table |
@@ -367,7 +369,9 @@ Design decisions worth knowing:
 - **Types come from the API contract.** `src/api/schema.d.ts` is generated from the committed OpenAPI file, so a backend change that breaks the UI fails the type-check instead of failing in a browser. TypeScript is pinned to 5.9 because `openapi-typescript` needs the JavaScript compiler API that TypeScript 7 no longer ships.
 - **The UI repeats the backtest's honesty.** The headline probability is the learned model; the comps are shown as evidence with an orange tick marking what they alone would say; noisy team dimensions are labelled noisy and the shortlist defaults to the weakest *reliable* gap; capped values say they are capped; "no outlook" explains why (defender, or too few minutes) instead of showing an empty chart.
 - **Every chart has a text equivalent** (an `aria-label` summary and a data table), diverging charts carry a legend so colour is never the only cue, and the search box is a keyboard-operable ARIA combobox.
-- **Theme tokens match the Python figures** (the same validated palette), with light, dark and follow-the-OS modes.
+- **Theme tokens match the Python figures** (the same validated palette), with light, dark and follow-the-OS modes. Everything visual is driven by CSS variables in one stylesheet (`src/styles.css`): the charts read the same variables, so a theme switch needs no chart code. The look is deliberately restrained: Inter, soft colour washes behind the page, a frosted sticky header, initials avatars instead of hotlinked player photos, and motion that switches off under `prefers-reduced-motion`.
+
+![Player page, dark theme](docs/screenshot_player_dark.png)
 - **Errors carry the server's own message** ("No player with id 99.") and network failures say the backend is not reachable. Client errors are not retried; server errors are, twice.
 - **Route-level code splitting.** The landing page is 86 KB gzipped; the 100 KB of chart code loads only when a chart page opens.
 - **Tests (30)** cover the formatters, URL building and error parsing, the fan-chart data shaping, the autocomplete's debounce and keyboard behaviour, and whole pages rendered against a mocked API: profile, forecast evidence, a defender with no outlook, a 404, a malformed id, the season parameter, and the team shortlist defaults. One of them caught a real bug (the page requested `/players/NaN/` for a malformed id).

@@ -2,6 +2,7 @@ import { Link, useParams, useSearchParams } from "react-router-dom";
 
 import { useComps, useForecast, useOutlook, usePlayer, usePlayerValue } from "../api/hooks";
 import type { PlayerProfile } from "../api/types";
+import { Avatar } from "../components/Avatar";
 import { CompsTable } from "../components/CompsTable";
 import { DivergingBars } from "../components/charts/DivergingBars";
 import { FanChart } from "../components/charts/FanChart";
@@ -14,25 +15,28 @@ function Header({ p, season }: { p: PlayerProfile; season: number | undefined })
   const rows = p.seasons.filter((s) => s.percentiles && Object.keys(s.percentiles).length);
   const shown = rows.find((s) => s.season === season) ?? rows.at(-1) ?? p.seasons.at(-1);
   return (
-    <header style={{ marginBottom: "1.25rem" }}>
-      <h1>{p.name}</h1>
-      <div className="row">
-        <span className="chip">{positionLabel(p.position_group)}</span>
-        {shown && (
-          <span className="chip">
-            {teamLabel(shown.team)} · {leagueLabel(shown.league)} {seasonLabel(shown.season)}
-          </span>
-        )}
-        {shown?.age !== null && shown?.age !== undefined && <span className="chip">Age {shown.age.toFixed(1)}</span>}
-        {p.nationalities.map((n) => (
-          <span className="chip" key={n}>
-            {n}
-          </span>
-        ))}
-        {p.height_cm ? <span className="chip">{p.height_cm} cm</span> : null}
-        {p.foot ? <span className="chip">{p.foot}-footed</span> : null}
-        {p.birth_date ? <span className="chip">Born {p.birth_date}</span> : null}
-        {shown?.market_value_eur ? <span className="chip">Value {eur(shown.market_value_eur)}</span> : null}
+    <header className="player-head">
+      <Avatar name={p.name} large />
+      <div>
+        <h1>{p.name}</h1>
+        <div className="row">
+          <span className="chip accent">{positionLabel(p.position_group)}</span>
+          {shown && (
+            <span className="chip">
+              {teamLabel(shown.team)} · {leagueLabel(shown.league)} {seasonLabel(shown.season)}
+            </span>
+          )}
+          {shown?.age !== null && shown?.age !== undefined && <span className="chip">Age {shown.age.toFixed(1)}</span>}
+          {p.nationalities.map((n) => (
+            <span className="chip" key={n}>
+              {n}
+            </span>
+          ))}
+          {p.height_cm ? <span className="chip">{p.height_cm} cm</span> : null}
+          {p.foot ? <span className="chip">{p.foot}-footed</span> : null}
+          {p.birth_date ? <span className="chip">Born {p.birth_date}</span> : null}
+          {shown?.market_value_eur ? <span className="chip">Value {eur(shown.market_value_eur)}</span> : null}
+        </div>
       </div>
     </header>
   );

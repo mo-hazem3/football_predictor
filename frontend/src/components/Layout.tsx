@@ -42,6 +42,12 @@ export function Layout() {
       <header className="site-header">
         <div className="container inner">
           <NavLink to="/" className="brand">
+            <span className="brand-mark" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="3 17 9 11 13 15 21 6" />
+                <polyline points="15 6 21 6 21 12" />
+              </svg>
+            </span>
             Football comps
           </NavLink>
           <nav className="nav" aria-label="Main">
